@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">Insurance Claims Mapping</string>
+    <string name="welcome_message">Welcome to Insurance Claims Mapping</string>
+    <string name="login">Login</string>
+    <string name="signup">Sign Up</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="dont_have_account">Don\'t have an account? Sign Up</string>
+    <string name="already_have_account">Already have an account? Login</string>
+    <string name="add_claim">Add New Claim</string>
+    <string name="history">Claim History</string>
+    <string name="location_view">Location Map View</string>
+    <string name="profile">Your Profile</string>
+    <string name="logout">Logout</string>
+    <string name="patient_name">Patient Name</string>
+    <string name="hospital_name">Hospital Name</string>
+    <string name="location">Location (City)</string>
+    <string name="amount">Claim Amount ($)</string>
+    <string name="description">Claim Description</string>
+    <string name="submit">Submit Claim</string>
+    <string name="error_empty_fields">Please fill all fields</string>
+    <string name="error_invalid_email">Invalid email format</string>
+    <string name="default_web_client_id">YOUR_GOOGLE_CLIENT_ID_HERE</string>
+    <string name="role_patient">Patient</string>
+    <string name="role_hospital">Hospital</string>
+    <string name="role_insurer">Insurer</string>
+</resources>

@@ -1,0 +1,154 @@
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootAddClaim"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/tvAddClaimHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/add_claim"
+            android:textColor="#00796B"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Choose Submission Method:"
+            android:textColor="@color/black"
+            android:textSize="16sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btnScan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="4dp"
+                android:backgroundTint="@color/colorPrimary"
+                android:text="Scan Bill"
+                android:textAllCaps="false" />
+
+            <Button
+                android:id="@+id/btnUploadPdf"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="4dp"
+                android:backgroundTint="@color/colorPrimary"
+                android:text="Upload PDF"
+                android:textAllCaps="false" />
+
+            <Button
+                android:id="@+id/btnManual"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="4dp"
+                android:backgroundTint="@color/colorPrimary"
+                android:text="Manual Entry"
+                android:textAllCaps="false" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutProcessing"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/tvProcessingStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Processing with AI..."
+                android:textAlignment="center" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutManualInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/etPatientId"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:background="@drawable/bg_edittext"
+                android:hint="Patient ID (e.g. PAT-001)"
+                android:padding="16dp"
+                android:visibility="gone" />
+
+            <EditText
+                android:id="@+id/etPatientName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_edittext"
+                android:hint="@string/patient_name"
+                android:padding="16dp" />
+
+            <EditText
+                android:id="@+id/etHospitalName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_edittext"
+                android:hint="@string/hospital_name"
+                android:padding="16dp" />
+
+            <EditText
+                android:id="@+id/etAmount"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_edittext"
+                android:hint="Bill Amount (₹)"
+                android:inputType="numberDecimal"
+                android:padding="16dp" />
+
+            <EditText
+                android:id="@+id/etDescription"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_edittext"
+                android:gravity="top"
+                android:hint="Diagnosis / Surgery (Manual)"
+                android:lines="4"
+                android:padding="16dp" />
+
+            <Button
+                android:id="@+id/btnSubmitClaim"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:backgroundTint="@color/colorPrimary"
+                android:padding="16dp"
+                android:text="@string/submit"
+                android:textAllCaps="false"
+                android:textColor="@color/white" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

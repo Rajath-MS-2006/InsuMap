@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/gray"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbarHistory"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/colorPrimary" />
+
+    <EditText
+        android:id="@+id/etSearch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="12dp"
+        android:background="@drawable/bg_edittext"
+        android:drawableStart="@drawable/ic_search"
+        android:drawablePadding="12dp"
+        android:hint="Search by Patient ID or Name..."
+        android:padding="12dp"
+        android:textSize="14sp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvClaims"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="8dp" />
+
+    <TextView
+        android:id="@+id/tvEmpty"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="100dp"
+        android:text="No claims found"
+        android:visibility="gone" />
+
+</LinearLayout>
