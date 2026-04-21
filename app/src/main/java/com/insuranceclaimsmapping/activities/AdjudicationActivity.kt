@@ -103,13 +103,14 @@ class AdjudicationActivity : AppCompatActivity() {
                         tvStatus.text = "Coverage confirmed. Proceeding..."
                     }
 
-                    firebaseHelper.updateClaim(result, {}, {})
+                    val claimWithId = result.copy(id = claim.id)
+                    firebaseHelper.updateClaim(claimWithId, {}, {})
                     
                     processed++
                     batchProgress.progress = processed
                     
                     updateLog(tvLog, scroll, "[System] Record updated in Cloud Ledger.")
-                    delay(5000) // Quality of Life delay + Mandatory Throttling for Free Tier (10 RPM)
+                    delay(1500) // Brief pause for UI update
 
                 } catch (e: Exception) {
                     if (e.message?.contains("Quota", ignoreCase = true) == true) {

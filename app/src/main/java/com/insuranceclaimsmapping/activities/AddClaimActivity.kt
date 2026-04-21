@@ -136,7 +136,7 @@ class AddClaimActivity : AppCompatActivity() {
                 
                 val result = geminiHelper.extractItemizedBill(bitmap)
                 if (result.items.isNotEmpty()) {
-                    val totalAmount = result.items.sumOf { it.amount }.toString()
+                    val totalAmount = String.format("%.2f", result.items.sumOf { it.amount })
                     val diagnosis = result.items.joinToString(", ") { it.description }
                     submitClaim(uri.toString(), result.patientName, result.hospitalName, totalAmount, diagnosis, result.items)
                 } else {
@@ -191,7 +191,7 @@ class AddClaimActivity : AppCompatActivity() {
             try {
                 val result = geminiHelper.extractItemizedBill(bitmap)
                 if (result.items.isNotEmpty()) {
-                    val totalAmount = result.items.sumOf { it.amount }.toString()
+                    val totalAmount = String.format("%.2f", result.items.sumOf { it.amount })
                     val diagnosis = result.items.joinToString(", ") { it.description }
                     submitClaim(fileUrl, result.patientName, result.hospitalName, totalAmount, diagnosis, result.items)
                 } else {
@@ -218,8 +218,8 @@ class AddClaimActivity : AppCompatActivity() {
             hospital = hospital,
             amount = amount,
             description = description,
-            userId = if (role == "PATIENT") "" else currUserId,
-            patientId = if (role == "PATIENT") currUserId else "", 
+            userId = currUserId,
+            patientId = currUserId, 
             billUrl = billUrl ?: "",
             items = items,
             isBillLoaded = true,
@@ -253,8 +253,8 @@ class AddClaimActivity : AppCompatActivity() {
             hospital = hospital,
             amount = amount,
             description = description,
-            userId = if (role == "PATIENT") "" else currUserId,
-            patientId = if (role == "PATIENT") currUserId else (linkedPatientId ?: ""), 
+            userId = currUserId,
+            patientId = linkedPatientId ?: currUserId, 
             customPatientId = if (role == "HOSPITAL") findViewById<EditText>(R.id.etPatientId).text.toString() else "",
             billUrl = billUrl ?: "",
             items = items,

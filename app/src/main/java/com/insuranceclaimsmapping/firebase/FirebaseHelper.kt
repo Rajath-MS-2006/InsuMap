@@ -48,9 +48,7 @@ class FirebaseHelper {
     }
 
     fun addClaim(claim: Claim, onSuccess: (String) -> Unit, onFailure: (Exception) -> Unit) {
-        val currentUserId = auth.currentUser?.uid ?: return
-        val claimWithUser = claim.copy(userId = currentUserId)
-        claimsCollection.add(claimWithUser)
+        claimsCollection.add(claim)
             .addOnSuccessListener { onSuccess(it.id) }
             .addOnFailureListener { onFailure(it) }
     }

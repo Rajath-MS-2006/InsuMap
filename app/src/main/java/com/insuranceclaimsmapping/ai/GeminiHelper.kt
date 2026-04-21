@@ -90,8 +90,8 @@ class GeminiHelper(private val context: Context) {
     )
  
     private suspend fun <T> withRetry(
-        maxRetries: Int = 5,
-        initialDelay: Long = 5000,
+        maxRetries: Int = 3,
+        initialDelay: Long = 1500,
         block: suspend () -> T
     ): T {
         var currentDelay = initialDelay
@@ -149,11 +149,15 @@ class GeminiHelper(private val context: Context) {
 
                 val response = withRetry { generativeModel.generateContent(prompt) }
                 val text = response.text ?: ""
-                val cleanJson = text.substringAfter("```json").substringBeforeLast("```").trim()
+                val cleanJson = try {
+                    text.substringAfter("```json").substringBeforeLast("```").trim()
+                } catch (e: Exception) {
+                    text.trim()
+                }
                 val json = try {
                     JSONObject(cleanJson.ifEmpty { text.trim() })
                 } catch (e: Exception) {
-                    JSONObject(text.trim()) 
+                    try { JSONObject(text.trim()) } catch (e2: Exception) { JSONObject() }
                 }
                 
                 claim.copy(
