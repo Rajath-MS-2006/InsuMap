@@ -55,7 +55,22 @@ class GeminiHelper(private val context: Context) {
             try {
                 val inputContent = content {
                     image(billBitmap)
-                    text("Extract hospital name, patient name, and an itemized list of charges (description and amount) from this bill. Return as valid JSON with keys: hospitalName, patientName, items (array of objects with 'description' and 'amount').")
+                                        text(
+                                                """
+                                                Extract hospital name, patient name, and an itemized list of charges from this medical bill.
+                                                Return JSON only using this schema:
+                                                {
+                                                    "hospitalName": "string",
+                                                    "patientName": "string",
+                                                    "items": [
+                                                        {"description": "string", "amount": 0.0}
+                                                    ]
+                                                }
+                                                Rules:
+                                                - Do not include markdown, code fences, or extra commentary.
+                                                - Keep amount as a number (no currency symbol).
+                                                """.trimIndent()
+                                        )
                 }
                 
                 val response = withRetry { generativeModel.generateContent(inputContent) }
@@ -71,24 +86,85 @@ class GeminiHelper(private val context: Context) {
 
     private fun parseExtractionResult(jsonString: String): ExtractionResult {
         try {
-            val cleanJson = jsonString.trim().removeSurrounding("```json", "```").trim()
-            val json = JSONObject(cleanJson)
-            val hospitalName = json.optString("hospitalName", "Unknown Hospital")
-            val patientName = json.optString("patientName", "Unknown Patient")
-            val itemsArray = json.optJSONArray("items") ?: JSONArray()
+            val json = JSONObject(extractJsonPayload(jsonString))
+            val hospitalName = firstNonBlank(
+                json.optString("hospitalName"),
+                json.optString("hospital"),
+                json.optString("providerName"),
+                "Unknown Hospital"
+            )
+            val patientName = firstNonBlank(
+                json.optString("patientName"),
+                json.optString("patient"),
+                json.optString("insuredName"),
+                "Unknown Patient"
+            )
+            val itemsArray = json.optJSONArray("items")
+                ?: json.optJSONArray("lineItems")
+                ?: json.optJSONArray("charges")
+                ?: JSONArray()
             
             val billItems = mutableListOf<com.insuranceclaimsmapping.models.BillItem>()
             for (i in 0 until itemsArray.length()) {
-                val itemObj = itemsArray.getJSONObject(i)
+                val itemObj = itemsArray.optJSONObject(i) ?: continue
                 billItems.add(com.insuranceclaimsmapping.models.BillItem(
-                    description = itemObj.optString("description", ""),
-                    amount = itemObj.optDouble("amount", 0.0)
+                    description = firstNonBlank(
+                        itemObj.optString("description"),
+                        itemObj.optString("name"),
+                        itemObj.optString("item"),
+                        ""
+                    ),
+                    amount = parseAmount(itemObj, "amount", "price", "cost", "value")
                 ))
             }
             return ExtractionResult(hospitalName, patientName, billItems)
         } catch (e: Exception) {
+            Log.e("GeminiHelper", "Failed to parse OCR extraction response", e)
             return ExtractionResult()
         }
+    }
+
+    private fun extractJsonPayload(raw: String): String {
+        val trimmed = raw.trim()
+
+        val fenceRegex = Regex("""```(?:json)?\s*([\s\S]*?)\s*```""")
+        val fenceMatch = fenceRegex.find(trimmed)
+        if (fenceMatch != null) {
+            val fenced = fenceMatch.groupValues[1].trim()
+            if (fenced.startsWith("{") && fenced.endsWith("}")) {
+                return fenced
+            }
+        }
+
+        val firstBrace = trimmed.indexOf('{')
+        val lastBrace = trimmed.lastIndexOf('}')
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+            return trimmed.substring(firstBrace, lastBrace + 1)
+        }
+
+        return trimmed
+    }
+
+    private fun firstNonBlank(vararg values: String): String {
+        for (value in values) {
+            if (value.isNotBlank()) return value
+        }
+        return ""
+    }
+
+    private fun parseAmount(item: JSONObject, vararg keys: String): Double {
+        for (key in keys) {
+            val raw = item.opt(key)
+            when (raw) {
+                is Number -> return raw.toDouble()
+                is String -> {
+                    val normalized = raw.replace(Regex("[^0-9.]"), "")
+                    val parsed = normalized.toDoubleOrNull()
+                    if (parsed != null) return parsed
+                }
+            }
+        }
+        return 0.0
     }
 
     data class ExtractionResult(

@@ -15,6 +15,7 @@ import com.insuranceclaimsmapping.R
 import com.insuranceclaimsmapping.ai.GeminiHelper
 import com.insuranceclaimsmapping.firebase.FirebaseHelper
 import com.insuranceclaimsmapping.models.Claim
+import com.insuranceclaimsmapping.utils.PrefManager
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -23,6 +24,7 @@ class AdjudicationActivity : AppCompatActivity() {
     private lateinit var firebaseHelper: FirebaseHelper
     private lateinit var geminiHelper: GeminiHelper
     private lateinit var auth: FirebaseAuth
+    private lateinit var prefManager: PrefManager
     private var claims: ArrayList<Claim> = arrayListOf()
     private var policyRules: String = ""
 
@@ -33,6 +35,7 @@ class AdjudicationActivity : AppCompatActivity() {
         firebaseHelper = FirebaseHelper()
         geminiHelper = GeminiHelper(this)
         auth = FirebaseAuth.getInstance()
+        prefManager = PrefManager(this)
 
         claims = intent.getParcelableArrayListExtra<Claim>("claims") ?: arrayListOf()
         policyRules = intent.getStringExtra("policyRules") ?: "Use standard medical necessity rules."
@@ -46,7 +49,7 @@ class AdjudicationActivity : AppCompatActivity() {
     }
 
     private fun enforceInsurerAccess(): Boolean {
-        val currentRole = intent.getStringExtra("role")
+        val currentRole = prefManager.getRole()
         if (currentRole != "INSURER") {
             Toast.makeText(this, "Only insurers can adjudicate claims.", Toast.LENGTH_LONG).show()
             finish()
