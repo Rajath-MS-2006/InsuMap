@@ -16,11 +16,19 @@ import kotlinx.coroutines.delay
 import com.insuranceclaimsmapping.BuildConfig
 
 class GeminiHelper(private val context: Context) {
+    private val apiKey = BuildConfig.GEMINI_API_KEY
+
     private val generativeModel = GenerativeModel(
         modelName = "gemini-3.1-flash-lite-preview",
-        apiKey = BuildConfig.GEMINI_API_KEY,
+        apiKey = apiKey,
         requestOptions = RequestOptions(apiVersion = "v1beta")
     )
+
+    init {
+        require(apiKey.isNotBlank()) {
+            "GEMINI_API_KEY is missing. Add GEMINI_API_KEY to local.properties before running AI workflows."
+        }
+    }
 
     suspend fun extractPolicyDetails(pdfUri: Uri): String? {
         return withContext(Dispatchers.IO) {

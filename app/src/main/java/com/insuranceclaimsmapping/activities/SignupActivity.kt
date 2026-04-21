@@ -14,6 +14,7 @@ class SignupActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var prefManager: PrefManager
     private lateinit var firebaseHelper: FirebaseHelper
+    private val strongPasswordRegex = Regex("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,}$")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,8 +55,12 @@ class SignupActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            if (password.length < 6) {
-                Toast.makeText(this, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+            if (!strongPasswordRegex.matches(password)) {
+                Toast.makeText(
+                    this,
+                    "Use 8+ chars with upper, lower, number, and special symbol.",
+                    Toast.LENGTH_LONG
+                ).show()
                 return@setOnClickListener
             }
 

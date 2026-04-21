@@ -5,6 +5,8 @@ plugins {
     id 'kotlin-parcelize'
 }
 
+def enableReleaseMinify = (findProperty("enableReleaseMinify") ?: "true").toString().toBoolean()
+
 android {
     namespace 'com.insuranceclaimsmapping'
     compileSdk 34
@@ -28,7 +30,7 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled enableReleaseMinify
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

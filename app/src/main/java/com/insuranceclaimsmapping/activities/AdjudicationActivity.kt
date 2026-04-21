@@ -8,13 +8,13 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.insuranceclaimsmapping.R
 import com.insuranceclaimsmapping.ai.GeminiHelper
 import com.insuranceclaimsmapping.firebase.FirebaseHelper
 import com.insuranceclaimsmapping.models.Claim
-import com.insuranceclaimsmapping.models.User
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -37,8 +37,22 @@ class AdjudicationActivity : AppCompatActivity() {
         claims = intent.getParcelableArrayListExtra<Claim>("claims") ?: arrayListOf()
         policyRules = intent.getStringExtra("policyRules") ?: "Use standard medical necessity rules."
 
+        if (!enforceInsurerAccess()) {
+            return
+        }
+
         setupUI()
         startAdjudication()
+    }
+
+    private fun enforceInsurerAccess(): Boolean {
+        val currentRole = intent.getStringExtra("role")
+        if (currentRole != "INSURER") {
+            Toast.makeText(this, "Only insurers can adjudicate claims.", Toast.LENGTH_LONG).show()
+            finish()
+            return false
+        }
+        return true
     }
 
     private fun setupUI() {

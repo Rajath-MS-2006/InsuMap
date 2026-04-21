@@ -28,6 +28,7 @@ class ClaimDetailActivity : AppCompatActivity() {
     private var claimId: String? = null
     private var currentClaim: Claim? = null
     private var isAutoPredictStarted = false
+    private var currentRole: String = "PATIENT"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +40,7 @@ class ClaimDetailActivity : AppCompatActivity() {
         auth = FirebaseAuth.getInstance()
         
         claimId = intent.getStringExtra("claimId")
+        currentRole = prefManager.getRole() ?: "PATIENT"
         
         fetchClaimDetails()
 
@@ -51,6 +53,14 @@ class ClaimDetailActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnLinkPatient).setOnClickListener {
             linkClaimToPatient()
         }
+
+        configureRoleRestrictedViews()
+    }
+
+    private fun configureRoleRestrictedViews() {
+        val btnLinkPatient = findViewById<Button>(R.id.btnLinkPatient)
+        val isHospital = currentRole == "HOSPITAL"
+        btnLinkPatient.visibility = if (isHospital) View.VISIBLE else View.GONE
     }
 
     private fun setupBranding() {
@@ -99,11 +109,26 @@ class ClaimDetailActivity : AppCompatActivity() {
                     if (snapshot != null && snapshot.exists()) {
                         val claim = firebaseHelper.safeMapToClaim(snapshot)
                         claim?.let {
+                            if (!isClaimAccessible(it)) {
+                                Toast.makeText(this, "You do not have access to this claim.", Toast.LENGTH_LONG).show()
+                                finish()
+                                return@addSnapshotListener
+                            }
                             currentClaim = it
                             updateUI(it)
                         }
                     }
                 }
+        }
+    }
+
+    private fun isClaimAccessible(claim: Claim): Boolean {
+        val currentUid = auth.currentUser?.uid ?: return false
+        return when (currentRole) {
+            "PATIENT" -> claim.patientId == currentUid
+            "HOSPITAL" -> claim.userId == currentUid
+            "INSURER" -> true
+            else -> false
         }
     }
 
@@ -180,6 +205,11 @@ class ClaimDetailActivity : AppCompatActivity() {
     }
 
     private fun startFinancialPredictor() {
+        if (currentRole != "PATIENT" && currentRole != "INSURER") {
+            Toast.makeText(this, "Only patients and insurers can run prediction.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val claim = currentClaim ?: return
         val progressBar = findViewById<ProgressBar>(R.id.progressAdjudication)
         val btnPredictor = findViewById<Button>(R.id.btnPredictor)
@@ -243,6 +273,11 @@ class ClaimDetailActivity : AppCompatActivity() {
     }
 
     private fun linkClaimToPatient() {
+        if (currentRole != "HOSPITAL") {
+            Toast.makeText(this, "Only hospitals can link a claim to a patient.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val etTargetId = findViewById<android.widget.EditText>(R.id.etTargetPatientId)
         val targetId = etTargetId.text.toString().trim()
         val cid = claimId ?: return

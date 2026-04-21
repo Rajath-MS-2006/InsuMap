@@ -168,6 +168,7 @@ class MainActivity : AppCompatActivity() {
                     val intent = Intent(this, AdjudicationActivity::class.java).apply {
                         putParcelableArrayListExtra("claims", ArrayList(pendingClaims))
                         putExtra("policyRules", policyRules)
+                        putExtra("role", role)
                     }
                     startActivity(intent)
                 }
