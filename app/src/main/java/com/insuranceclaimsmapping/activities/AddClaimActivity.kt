@@ -135,12 +135,12 @@ class AddClaimActivity : AppCompatActivity() {
                 }
                 
                 val result = geminiHelper.extractItemizedBill(bitmap)
-                if (result.items.isNotEmpty()) {
+                if (result.items.isNotEmpty() && result.hospitalName.isNotEmpty()) {
                     val totalAmount = result.items.sumOf { it.amount }.toString()
                     val diagnosis = result.items.joinToString(", ") { it.description }
                     submitClaim(uri.toString(), result.patientName, result.hospitalName, totalAmount, diagnosis, result.items)
                 } else {
-                    showManualFallback("AI couldn't read the bill. Please enter manually.")
+                    showManualFallback("AI could not extract enough information from the bill. Please enter manually.")
                 }
             } catch (e: Exception) {
                 val errorMsg = "AI Error: ${e.localizedMessage ?: "Unknown Error"}"
@@ -190,12 +190,12 @@ class AddClaimActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val result = geminiHelper.extractItemizedBill(bitmap)
-                if (result.items.isNotEmpty()) {
+                if (result.items.isNotEmpty() && result.hospitalName.isNotEmpty()) {
                     val totalAmount = result.items.sumOf { it.amount }.toString()
                     val diagnosis = result.items.joinToString(", ") { it.description }
                     submitClaim(fileUrl, result.patientName, result.hospitalName, totalAmount, diagnosis, result.items)
                 } else {
-                    showManualFallback("AI couldn't read the PDF content. Please enter manually.")
+                    showManualFallback("AI could not extract enough information from the PDF. Please enter manually.")
                 }
             } catch (e: Exception) {
                 showManualFallback("AI PDF Error: ${e.localizedMessage ?: "Unknown Error"}")

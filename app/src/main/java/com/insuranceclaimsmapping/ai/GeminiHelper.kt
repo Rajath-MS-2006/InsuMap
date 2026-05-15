@@ -7,6 +7,7 @@ import android.util.Log
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.RequestOptions
 import com.google.ai.client.generativeai.type.content
+import com.google.ai.client.generativeai.type.generationConfig
 import com.insuranceclaimsmapping.models.Claim
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,11 +15,15 @@ import org.json.JSONObject
 import org.json.JSONArray
 import kotlinx.coroutines.delay
 import com.insuranceclaimsmapping.BuildConfig
+import com.google.firebase.Timestamp
 
 class GeminiHelper(private val context: Context) {
     private val generativeModel = GenerativeModel(
-        modelName = "gemini-3.1-flash-lite-preview",
+        modelName = "gemini-3.1-flash-lite",
         apiKey = BuildConfig.GEMINI_API_KEY,
+        generationConfig = generationConfig {
+            temperature = 0.0f
+        },
         requestOptions = RequestOptions(apiVersion = "v1beta")
     )
 
@@ -30,7 +35,7 @@ class GeminiHelper(private val context: Context) {
                 
                 val inputContent = content {
                     blob("application/pdf", bytes)
-                    text("Extract coverage details, copay percentages, and deductible limits from this insurance policy. Return a concise bulleted summary of medical coverage rules. Be clinical and thorough.")
+                    text("Extract real coverage details, copay percentages, and deductible limits from this insurance policy based ONLY on the provided text. Return a concise bulleted summary of medical coverage rules. Be clinical, thorough, and do not make up arbitrary rules.")
                 }
                 
                 val response = withRetry { generativeModel.generateContent(inputContent) }
@@ -47,7 +52,14 @@ class GeminiHelper(private val context: Context) {
             try {
                 val inputContent = content {
                     image(billBitmap)
-                    text("Extract hospital name, patient name, and an itemized list of charges (description and amount) from this bill. Return as valid JSON with keys: hospitalName, patientName, items (array of objects with 'description' and 'amount').")
+                    text("""
+                        Analyze this medical bill thoroughly and carefully.
+                        Extract the EXACT hospital name, patient name, and a complete itemized list of EVERY charge (description and amount) present on the document.
+                        Do NOT hallucinate or make up any names, hospitals, or items. Only use what is clearly visible in the image.
+                        If a field is not readable, use "Not Found" for strings or 0.0 for amounts.
+                        Return as valid JSON with keys: 'hospitalName', 'patientName', 'items' (array of objects with 'description' and 'amount').
+                        Ensure the output is a valid JSON. Capture every single row of the bill.
+                    """.trimIndent())
                 }
                 
                 val response = withRetry { generativeModel.generateContent(inputContent) }
@@ -63,10 +75,10 @@ class GeminiHelper(private val context: Context) {
 
     private fun parseExtractionResult(jsonString: String): ExtractionResult {
         try {
-            val cleanJson = jsonString.trim().removeSurrounding("```json", "```").trim()
+            val cleanJson = jsonString.trim().removeSurrounding("```json", "```").removeSurrounding("```").trim()
             val json = JSONObject(cleanJson)
-            val hospitalName = json.optString("hospitalName", "Unknown Hospital")
-            val patientName = json.optString("patientName", "Unknown Patient")
+            val hospitalName = json.optString("hospitalName", "").trim()
+            val patientName = json.optString("patientName", "").trim()
             val itemsArray = json.optJSONArray("items") ?: JSONArray()
             
             val billItems = mutableListOf<com.insuranceclaimsmapping.models.BillItem>()
@@ -84,8 +96,8 @@ class GeminiHelper(private val context: Context) {
     }
 
     data class ExtractionResult(
-        val hospitalName: String = "Unknown Hospital",
-        val patientName: String = "Unknown Patient",
+        val hospitalName: String = "",
+        val patientName: String = "",
         val items: List<com.insuranceclaimsmapping.models.BillItem> = emptyList()
     )
  
@@ -135,7 +147,7 @@ class GeminiHelper(private val context: Context) {
                 }
 
                 val prompt = """
-                    Adjudicate this insurance claim based on the provided policy rules.
+                    Adjudicate this insurance claim based strictly on the provided policy rules.
                     Total Claim Amount: ${claim.amount}
                     ${itemsContext}
                     Policy Rules: $policyRules
@@ -144,7 +156,8 @@ class GeminiHelper(private val context: Context) {
                     "status" (APPROVED, REJECTED, PARTIAL), 
                     "coveredAmount" (number), 
                     "patientLiability" (number), 
-                    "aiReasoning" (string explaining why - mentioning specific items if they caused a rejection).
+                    "aiReasoning" (string explaining the calculation and why - mentioning specific items if they caused a rejection based on the policy).
+                    Ensure the math is correct according to the policy rules. Do NOT make up rules or hallucinations.
                 """.trimIndent()
 
                 val response = withRetry { generativeModel.generateContent(prompt) }
@@ -161,7 +174,7 @@ class GeminiHelper(private val context: Context) {
                     coveredAmount = json.optDouble("coveredAmount", 0.0),
                     patientLiability = json.optDouble("patientLiability", 0.0),
                     aiReasoning = json.optString("aiReasoning", "Processed by Gemini"),
-                    timestamp = com.google.firebase.Timestamp.now()
+                    timestamp = Timestamp.now()
                 )
             } catch (e: Exception) {
                 Log.e("GeminiHelper", "Error adjudicating claim", e)
