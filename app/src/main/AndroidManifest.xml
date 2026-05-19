@@ -5,9 +5,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
     <application
         android:allowBackup="true"
@@ -61,6 +64,22 @@
         <activity 
             android:name=".activities.ProfileActivity"
             android:theme="@style/Theme.InsuranceClaims.NoActionBar" />
+        <activity 
+            android:name=".activities.ExpenseTrackerActivity"
+            android:theme="@style/Theme.InsuranceClaims.NoActionBar" />
+        <activity
+            android:name=".activities.OnboardingActivity"
+            android:theme="@style/Theme.InsuranceClaims.NoActionBar" />
+        <activity
+            android:name=".activities.FraudDashboardActivity"
+            android:theme="@style/Theme.InsuranceClaims.NoActionBar" />
+        <activity
+            android:name=".activities.InsuranceCardActivity"
+            android:theme="@style/Theme.InsuranceClaims.NoActionBar" />
+        <activity
+            android:name=".activities.AppealClaimActivity"
+            android:theme="@style/Theme.InsuranceClaims.NoActionBar" />
+
 
         <service
             android:name=".services.InsuMapMessagingService"

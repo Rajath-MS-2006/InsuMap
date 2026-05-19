@@ -1,37 +1,35 @@
 package com.insuranceclaimsmapping.activities
 
-import android.graphics.Color
 import android.os.Bundle
 import android.view.View
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.insuranceclaimsmapping.R
-import com.insuranceclaimsmapping.ai.GeminiHelper
+import com.insuranceclaimsmapping.ai.OfflineInferenceHelper
+import com.insuranceclaimsmapping.databinding.ActivityAdjudicationBinding
 import com.insuranceclaimsmapping.firebase.FirebaseHelper
 import com.insuranceclaimsmapping.models.Claim
-import com.insuranceclaimsmapping.models.User
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class AdjudicationActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityAdjudicationBinding
     private lateinit var firebaseHelper: FirebaseHelper
-    private lateinit var geminiHelper: GeminiHelper
+    private lateinit var offlineInferenceHelper: OfflineInferenceHelper
     private lateinit var auth: FirebaseAuth
     private var claims: ArrayList<Claim> = arrayListOf()
     private var policyRules: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_adjudication)
+        binding = ActivityAdjudicationBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         firebaseHelper = FirebaseHelper()
-        geminiHelper = GeminiHelper(this)
+        offlineInferenceHelper = OfflineInferenceHelper(this)
         auth = FirebaseAuth.getInstance()
 
         claims = intent.getParcelableArrayListExtra<Claim>("claims") ?: arrayListOf()
@@ -42,98 +40,94 @@ class AdjudicationActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
-        val root = findViewById<LinearLayout>(R.id.rootLayoutAdjudication)
-        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbarAdjudication)
-        setSupportActionBar(toolbar)
+        setSupportActionBar(binding.toolbarAdjudication)
         
         // Fetch role for branding
         auth.currentUser?.uid?.let { uid ->
             firebaseHelper.getUserProfile(uid, { user ->
-                user?.let { applyRoleBranding(it.role, root, toolbar) }
-            }, {})
+                if (isFinishing || isDestroyed) return@getUserProfile
+                user?.let { applyRoleBranding(it.role) }
+            }, {
+                // error ignored for branding
+            })
         }
     }
 
-    private fun applyRoleBranding(role: String, root: View, toolbar: androidx.appcompat.widget.Toolbar) {
-        val (bg, toolbarColor) = when (role) {
-            "HOSPITAL" -> R.color.green_light to Color.parseColor("#2E7D32")
-            "INSURER" -> R.color.blue_light to Color.parseColor("#1565C0")
-            "PATIENT" -> R.color.yellow_light to Color.parseColor("#F57F17")
-            else -> R.color.gray to Color.parseColor("#00796B")
+    private fun applyRoleBranding(role: String) {
+        val (bg, colorRes) = when (role) {
+            "HOSPITAL" -> R.color.green_light to R.color.hospital_primary
+            "INSURER"  -> R.color.blue_light  to R.color.insurer_primary
+            "PATIENT"  -> R.color.yellow_light to R.color.patient_primary
+            else       -> R.color.gray         to R.color.default_primary
         }
-        root.setBackgroundResource(bg)
-        toolbar.setBackgroundColor(toolbarColor)
+        binding.rootLayoutAdjudication.setBackgroundResource(bg)
+        binding.toolbarAdjudication.setBackgroundColor(getColor(colorRes))
     }
 
     private fun startAdjudication() {
-        val tvStatus = findViewById<TextView>(R.id.tvAdjudicationStatus)
-        val tvLog = findViewById<TextView>(R.id.tvClinicalLog)
-        val scroll = findViewById<ScrollView>(R.id.scrollLog)
-        val batchProgress = findViewById<ProgressBar>(R.id.batchProgressBar)
-        val mainSpinner = findViewById<ProgressBar>(R.id.progressBarAdjudication)
-        val btnDone = findViewById<Button>(R.id.btnDoneAdjudication)
-
-        batchProgress.max = claims.size
+        binding.batchProgressBar.max = claims.size
 
         lifecycleScope.launch {
             var processed = 0
             for (claim in claims) {
                 try {
-                    val msgIdentifier = "Evaluating Service: ${claim.description}"
-                    updateLog(tvLog, scroll, "[Process] $msgIdentifier")
-                    tvStatus.text = "Identifying: ${claim.description}..."
-                    delay(800)
+                    updateLog("[Process] Evaluating: ${claim.description}")
+                    binding.tvAdjudicationStatus.text = "Identifying: ${claim.description}..."
+                    delay(300)
 
                     val serviceName = if (claim.items.isNotEmpty()) claim.items[0].description else claim.description
-                    updateLog(tvLog, scroll, "[Rules] Checking policy coverage for '$serviceName'...")
-                    tvStatus.text = "Checking coverage for '$serviceName'..."
-                    delay(1000)
+                    updateLog("[Rules] Checking policy coverage for '$serviceName'...")
+                    binding.tvAdjudicationStatus.text = "Checking coverage for '$serviceName'..."
+                    delay(500)
 
-                    val result = geminiHelper.adjudicateSingleClaim(claim, policyRules)
+                    val result = offlineInferenceHelper.adjudicateSingleClaim(claim, policyRules)
+                    if (isFinishing || isDestroyed) return@launch
 
                     if (result.status == "REJECTED") {
-                        updateLog(tvLog, scroll, "[Log] Item rejected: outside policy scope.")
-                        tvStatus.text = "Item outside policy scope. Moving to next..."
-                    } else if (result.aiReasoning.contains("Quota", ignoreCase = true)) {
-                        updateLog(tvLog, scroll, "[System] AI engine cooling down... (Quota hit)")
-                        tvStatus.text = "Throttling active. Resuming shortly..."
-                        delay(2000)
+                        updateLog("[Log] Item rejected: outside policy scope.")
+                        binding.tvAdjudicationStatus.text = "Item outside policy scope. Moving to next..."
                     } else {
-                        updateLog(tvLog, scroll, "[Log] Coverage confirmed. Approved Amount: ${result.coveredAmount}")
-                        tvStatus.text = "Coverage confirmed. Proceeding..."
+                        updateLog("[Log] Coverage confirmed. Approved Amount: ${result.coveredAmount}")
+                        binding.tvAdjudicationStatus.text = "Coverage confirmed. Proceeding..."
                     }
 
-                    firebaseHelper.updateClaim(result, {}, {})
+                    firebaseHelper.updateClaim(result, {
+                        // success
+                    }, { e ->
+                        if (isFinishing || isDestroyed) return@updateClaim
+                        updateLog("[Warning] Failed to save claim: ${e.message}")
+                    })
                     
                     processed++
-                    batchProgress.progress = processed
+                    binding.batchProgressBar.progress = processed
                     
-                    updateLog(tvLog, scroll, "[System] Record updated in Cloud Ledger.")
-                    delay(5000) // Quality of Life delay + Mandatory Throttling for Free Tier (10 RPM)
+                    updateLog("[System] Record updated in Cloud Ledger.")
+                    delay(500) // Quality of Life delay
 
                 } catch (e: Exception) {
-                    if (e.message?.contains("Quota", ignoreCase = true) == true) {
-                        updateLog(tvLog, scroll, "[Warning] Quota limit hit. Clinical evaluation paused.")
-                        tvStatus.text = "Rate limit reached. Please wait..."
-                        delay(10000) // Extra safety wait
-                    } else {
-                        updateLog(tvLog, scroll, "[Error] Clinical skip: ${e.message}")
-                    }
-                    delay(1000)
+                    if (isFinishing || isDestroyed) return@launch
+                    updateLog("[Error] Clinical skip: ${e.message}")
+                    delay(500)
                 }
             }
 
-            mainSpinner.visibility = View.GONE
-            tvStatus.text = "Batch Adjudication Complete"
-            updateLog(tvLog, scroll, "----------------------------------")
-            updateLog(tvLog, scroll, "[Status] All components processed successfully.")
-            btnDone.visibility = View.VISIBLE
-            btnDone.setOnClickListener { finish() }
+            if (isFinishing || isDestroyed) return@launch
+            binding.progressBarAdjudication.visibility = View.GONE
+            binding.tvAdjudicationStatus.text = "Batch Adjudication Complete"
+            updateLog("----------------------------------")
+            updateLog("[Status] All components processed successfully.")
+            binding.btnDoneAdjudication.visibility = View.VISIBLE
+            binding.btnDoneAdjudication.setOnClickListener { finish() }
         }
     }
 
-    private fun updateLog(tv: TextView, scroll: ScrollView, message: String) {
-        tv.append("\n$message")
-        scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+    private fun updateLog(message: String) {
+        if (isFinishing || isDestroyed) return
+        binding.tvClinicalLog.append("\n$message")
+        binding.scrollLog.post { 
+            if (!isFinishing && !isDestroyed) {
+                binding.scrollLog.fullScroll(View.FOCUS_DOWN) 
+            }
+        }
     }
 }

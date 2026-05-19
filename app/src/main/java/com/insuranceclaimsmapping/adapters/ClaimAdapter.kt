@@ -11,6 +11,12 @@ import com.insuranceclaimsmapping.models.Claim
 class ClaimAdapter(private var claims: List<Claim>) :
     RecyclerView.Adapter<ClaimAdapter.ClaimViewHolder>() {
 
+    private var onItemClickListener: ((Claim) -> Unit)? = null
+
+    fun setOnItemClickListener(listener: (Claim) -> Unit) {
+        onItemClickListener = listener
+    }
+
     class ClaimViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val tvHospital: TextView = itemView.findViewById(R.id.tvItemHospital)
         val tvAmount: TextView = itemView.findViewById(R.id.tvItemAmount)
@@ -34,16 +40,21 @@ class ClaimAdapter(private var claims: List<Claim>) :
         holder.tvStatus.text = claim.status
         
         // Dynamic status background
-        if (claim.status == "ADJUDICATED") {
-            holder.tvStatus.setBackgroundResource(R.drawable.bg_status_approved)
-        } else {
-            holder.tvStatus.setBackgroundResource(R.drawable.bg_status_pending)
+        when (claim.status) {
+            "ADJUDICATED", "APPROVED" -> holder.tvStatus.setBackgroundResource(R.drawable.bg_status_approved)
+            "REJECTED" -> holder.tvStatus.setBackgroundResource(R.drawable.bg_status_pending)
+            "APPEAL_PENDING" -> holder.tvStatus.setBackgroundResource(R.drawable.bg_status_pending)
+            else -> holder.tvStatus.setBackgroundResource(R.drawable.bg_status_pending)
         }
 
         holder.itemView.setOnClickListener {
-            val intent = android.content.Intent(context, com.insuranceclaimsmapping.activities.ClaimDetailActivity::class.java)
-            intent.putExtra("claimId", claim.id)
-            context.startActivity(intent)
+            if (onItemClickListener != null) {
+                onItemClickListener?.invoke(claim)
+            } else {
+                val intent = android.content.Intent(context, com.insuranceclaimsmapping.activities.ClaimDetailActivity::class.java)
+                intent.putExtra("claimId", claim.id)
+                context.startActivity(intent)
+            }
         }
     }
 

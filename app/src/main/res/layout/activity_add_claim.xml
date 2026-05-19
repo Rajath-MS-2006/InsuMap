@@ -82,6 +82,18 @@
                 android:textAlignment="center" />
         </LinearLayout>
 
+        <!-- Patient ID shown for HOSPITAL role, outside manual input so it's always accessible -->
+        <EditText
+            android:id="@+id/etPatientId"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_edittext"
+            android:hint="Patient ID or Name (e.g. PAT-001)"
+            android:maxLength="50"
+            android:padding="16dp"
+            android:visibility="gone" />
+
         <LinearLayout
             android:id="@+id/layoutManualInput"
             android:layout_width="match_parent"
@@ -90,22 +102,13 @@
             android:visibility="gone">
 
             <EditText
-                android:id="@+id/etPatientId"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:background="@drawable/bg_edittext"
-                android:hint="Patient ID (e.g. PAT-001)"
-                android:padding="16dp"
-                android:visibility="gone" />
-
-            <EditText
                 android:id="@+id/etPatientName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:background="@drawable/bg_edittext"
                 android:hint="@string/patient_name"
+                android:maxLength="100"
                 android:padding="16dp" />
 
             <EditText
@@ -115,6 +118,7 @@
                 android:layout_marginTop="16dp"
                 android:background="@drawable/bg_edittext"
                 android:hint="@string/hospital_name"
+                android:maxLength="100"
                 android:padding="16dp" />
 
             <EditText
@@ -125,6 +129,7 @@
                 android:background="@drawable/bg_edittext"
                 android:hint="Bill Amount (₹)"
                 android:inputType="numberDecimal"
+                android:maxLength="12"
                 android:padding="16dp" />
 
             <LinearLayout

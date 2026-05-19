@@ -8,75 +8,68 @@ import android.content.Intent
 import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.insuranceclaimsmapping.R
 import com.insuranceclaimsmapping.activities.MainActivity
+import com.insuranceclaimsmapping.firebase.FirebaseHelper
 import com.insuranceclaimsmapping.utils.PrefManager
 
 class InsuMapMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // Optionally save the new token to Firestore here, or wait until login/app start
-        val prefManager = PrefManager(this)
-        // Store it locally for later use
         getSharedPreferences("InsuMapPrefs", Context.MODE_PRIVATE).edit()
             .putString("fcm_token", token).apply()
+        // Save token to Firestore so other users can send notifications to this device
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (uid != null) {
+            FirebaseHelper().saveFcmToken(uid, token)
+        }
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        val prefManager = PrefManager(this)
-        // Check if user has opted out of notifications
-        if (!prefManager.getNotificationsEnabled()) {
-            return
-        }
+        if (!PrefManager(this).getNotificationsEnabled()) return
 
-        // Check if message contains a notification payload
         remoteMessage.notification?.let {
-            sendNotification(it.title, it.body)
+            sendNotification(it.title, it.body, remoteMessage.data["claimId"])
         } ?: run {
-            // Check if message contains a data payload (background message)
             if (remoteMessage.data.isNotEmpty()) {
-                val title = remoteMessage.data["title"]
-                val body = remoteMessage.data["body"]
-                sendNotification(title, body)
+                sendNotification(
+                    remoteMessage.data["title"],
+                    remoteMessage.data["body"],
+                    remoteMessage.data["claimId"]
+                )
             }
         }
     }
 
-    private fun sendNotification(title: String?, messageBody: String?) {
-        val intent = Intent(this, MainActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+    private fun sendNotification(title: String?, messageBody: String?, claimId: String? = null) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            claimId?.let { putExtra("claimId", it) }
+        }
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_ONE_SHOT
         )
 
         val channelId = "insumap_default_channel"
-        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
-            // Using ic_launcher as a placeholder. In production, use a white transparent icon for notifications.
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_medical_claim)
             .setContentTitle(title ?: "InsuMap Notification")
             .setContentText(messageBody)
             .setAutoCancel(true)
-            .setSound(defaultSoundUri)
+            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
             .setContentIntent(pendingIntent)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        // Since android Oreo notification channel is needed.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "InsuMap Alerts",
-                NotificationManager.IMPORTANCE_DEFAULT
+            notificationManager.createNotificationChannel(
+                NotificationChannel(channelId, "InsuMap Alerts", NotificationManager.IMPORTANCE_DEFAULT)
             )
-            notificationManager.createNotificationChannel(channel)
         }
-
         notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
     }
 }

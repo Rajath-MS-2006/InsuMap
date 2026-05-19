@@ -42,10 +42,10 @@ class BillItemAdapter(private val items: List<BillItem>) : RecyclerView.Adapter<
         
         if (item.fraudWarning) {
             holder.tvFraudBadge.visibility = View.VISIBLE
-            holder.tvAmount.setTextColor(android.graphics.Color.parseColor("#D32F2F"))
+            holder.tvAmount.setTextColor(holder.itemView.context.getColor(R.color.error_red))
         } else {
             holder.tvFraudBadge.visibility = View.GONE
-            holder.tvAmount.setTextColor(android.graphics.Color.parseColor("#000000"))
+            holder.tvAmount.setTextColor(holder.itemView.context.getColor(R.color.black))
         }
     }
 

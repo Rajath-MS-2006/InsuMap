@@ -9,11 +9,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 
 class FirebaseHelper {
-    private val db = FirebaseFirestore.getInstance().apply {
-        firestoreSettings = com.google.firebase.firestore.FirebaseFirestoreSettings.Builder()
-            .setPersistenceEnabled(true)
-            .build()
-    }
+    private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
     private val usersCollection = db.collection("users")
     private val claimsCollection = db.collection("claims")
@@ -23,6 +19,10 @@ class FirebaseHelper {
         usersCollection.document(user.uid).set(user)
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener { onFailure(it) }
+    }
+
+    fun updateUserProfile(user: User, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        saveUserProfile(user, onSuccess, onFailure)
     }
 
     fun getUserProfile(uid: String, onSuccess: (User?) -> Unit, onFailure: (Exception) -> Unit) {
@@ -51,28 +51,15 @@ class FirebaseHelper {
         }
     }
 
+    fun uploadProfilePicture(fileUri: Uri, uid: String, onSuccess: (String) -> Unit, onFailure: (Exception) -> Unit) {
+        uploadFile("profile_pics", "$uid.jpg", fileUri, onSuccess, onFailure)
+    }
+
     fun addClaim(claim: Claim, onSuccess: (String) -> Unit, onFailure: (Exception) -> Unit) {
         val currentUserId = auth.currentUser?.uid ?: return
         val claimWithUser = claim.copy(userId = currentUserId)
         claimsCollection.add(claimWithUser)
             .addOnSuccessListener { onSuccess(it.id) }
-            .addOnFailureListener { onFailure(it) }
-    }
-    
-    fun updateUserProfile(user: User, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
-        usersCollection.document(user.uid).set(user)
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { onFailure(it) }
-    }
-
-    fun uploadProfilePicture(uri: android.net.Uri, uid: String, onSuccess: (String) -> Unit, onFailure: (Exception) -> Unit) {
-        val storageRef = com.google.firebase.storage.FirebaseStorage.getInstance().reference.child("profile_pictures/$uid.jpg")
-        storageRef.putFile(uri)
-            .addOnSuccessListener {
-                storageRef.downloadUrl.addOnSuccessListener { downloadUrl ->
-                    onSuccess(downloadUrl.toString())
-                }.addOnFailureListener { onFailure(it) }
-            }
             .addOnFailureListener { onFailure(it) }
     }
 
@@ -84,11 +71,39 @@ class FirebaseHelper {
             .addOnFailureListener { onFailure(it) }
     }
 
+    fun savePolicyWithHistory(policy: Policy, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        policiesCollection.document(policy.insurerId).get().addOnSuccessListener { doc ->
+            val currentPolicy = doc.toObject(Policy::class.java)
+            val nextVersion = (currentPolicy?.version ?: 0) + 1
+            val policyToSave = policy.copy(version = nextVersion, uploadedAt = System.currentTimeMillis())
+            
+            policiesCollection.document(policy.insurerId).set(policyToSave)
+                .addOnSuccessListener {
+                    policiesCollection.document(policy.insurerId).collection("history")
+                        .add(policyToSave)
+                        .addOnSuccessListener { onSuccess() }
+                        .addOnFailureListener { onFailure(it) }
+                }
+                .addOnFailureListener { onFailure(it) }
+        }.addOnFailureListener { onFailure(it) }
+    }
+
     fun getPolicy(insurerId: String, onSuccess: (Policy?) -> Unit, onFailure: (Exception) -> Unit) {
         policiesCollection.document(insurerId).get()
             .addOnSuccessListener { document ->
                 val policy = document.toObject(Policy::class.java)
                 onSuccess(policy)
+            }
+            .addOnFailureListener { onFailure(it) }
+    }
+
+    fun getPolicyHistory(insurerId: String, onSuccess: (List<Policy>) -> Unit, onFailure: (Exception) -> Unit) {
+        policiesCollection.document(insurerId).collection("history")
+            .orderBy("version", Query.Direction.DESCENDING)
+            .get()
+            .addOnSuccessListener { result ->
+                val history = result.toObjects(Policy::class.java)
+                onSuccess(history)
             }
             .addOnFailureListener { onFailure(it) }
     }
@@ -118,16 +133,21 @@ class FirebaseHelper {
             .addOnFailureListener { onFailure(it) }
     }
 
-    /**
-     * Safely maps a Firestore document to a Claim object, handling common type mismatches 
-     * (like String vs Double) that cause crashes in toObject().
-     */
+    fun getFlaggedClaims(onSuccess: (List<Claim>) -> Unit, onFailure: (Exception) -> Unit) {
+        claimsCollection.whereEqualTo("status", "FLAGGED")
+            .get()
+            .addOnSuccessListener { result ->
+                val claims = result.documents.mapNotNull { safeMapToClaim(it) }
+                onSuccess(claims)
+            }
+            .addOnFailureListener { onFailure(it) }
+    }
+
     fun safeMapToClaim(doc: com.google.firebase.firestore.DocumentSnapshot?): Claim? {
         if (doc == null || !doc.exists()) return null
         return try {
             val data = doc.data ?: return null
             
-            // Map items list first
             val itemsList = data["items"] as? List<Map<String, Any>>
             val billItems = itemsList?.map { itemMap ->
                 com.insuranceclaimsmapping.models.BillItem(
@@ -135,8 +155,7 @@ class FirebaseHelper {
                     amount = (itemMap["amount"] as? Number)?.toDouble() ?: 0.0,
                     coveredAmount = (itemMap["coveredAmount"] as? Number)?.toDouble() ?: 0.0,
                     status = itemMap["status"] as? String ?: "PENDING",
-                    reasoning = itemMap["reasoning"] as? String ?: "",
-                    fraudWarning = itemMap["fraudWarning"] as? Boolean ?: false
+                    reasoning = itemMap["reasoning"] as? String ?: ""
                 )
             } ?: emptyList()
 
@@ -155,23 +174,9 @@ class FirebaseHelper {
                 isBillLoaded = data["isBillLoaded"] as? Boolean ?: false,
                 isPolicyLoaded = data["isPolicyLoaded"] as? Boolean ?: false,
                 aiReasoning = data["aiReasoning"] as? String ?: "",
-                fraudWarning = data["fraudWarning"] as? Boolean ?: false,
-                fraudReasoning = data["fraudReasoning"] as? String ?: "",
                 items = billItems,
-                coveredAmount = try {
-                    when (val v = data["coveredAmount"]) {
-                        is Number -> v.toDouble()
-                        is String -> v.toDoubleOrNull() ?: 0.0
-                        else -> 0.0
-                    }
-                } catch (e: Exception) { 0.0 },
-                patientLiability = try {
-                    when (val v = data["patientLiability"]) {
-                        is Number -> v.toDouble()
-                        is String -> v.toDoubleOrNull() ?: 0.0
-                        else -> 0.0
-                    }
-                } catch (e: Exception) { 0.0 }
+                coveredAmount = (data["coveredAmount"] as? Number)?.toDouble() ?: 0.0,
+                patientLiability = (data["patientLiability"] as? Number)?.toDouble() ?: 0.0
             )
         } catch (e: Exception) {
             null
@@ -207,6 +212,32 @@ class FirebaseHelper {
             .addOnFailureListener { onFailure(it) }
     }
 
+    fun getUsersByName(query: String, onSuccess: (List<User>) -> Unit, onFailure: (Exception) -> Unit) {
+        usersCollection
+            .whereGreaterThanOrEqualTo("displayName", query)
+            .whereLessThanOrEqualTo("displayName", query + "\uf8ff")
+            .get()
+            .addOnSuccessListener { result ->
+                val users = result.toObjects(User::class.java)
+                onSuccess(users)
+            }
+            .addOnFailureListener { onFailure(it) }
+    }
+
+    fun getDuplicateClaims(patientId: String, hospital: String, amount: String, onResult: (Boolean) -> Unit) {
+        claimsCollection
+            .whereEqualTo("patientId", patientId)
+            .whereEqualTo("hospital", hospital)
+            .whereEqualTo("amount", amount)
+            .get()
+            .addOnSuccessListener { result ->
+                onResult(!result.isEmpty)
+            }
+            .addOnFailureListener {
+                onResult(false)
+            }
+    }
+
     fun generateNextCustomId(role: String, onSuccess: (String) -> Unit) {
         getRoleUserCount(role) { count ->
             val prefix = when (role) {
@@ -231,5 +262,21 @@ class FirebaseHelper {
             )
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener { onFailure(it) }
+    }
+
+    fun addClaimAppeal(claimId: String, note: String, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        claimsCollection.document(claimId)
+            .update(
+                mapOf(
+                    "status" to "APPEAL_PENDING",
+                    "appealNote" to note
+                )
+            )
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onFailure(it) }
+    }
+
+    fun saveFcmToken(uid: String, token: String) {
+        usersCollection.document(uid).update("fcmToken", token)
     }
 }

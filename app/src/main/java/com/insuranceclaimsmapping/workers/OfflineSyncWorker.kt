@@ -1,6 +1,7 @@
 package com.insuranceclaimsmapping.workers
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.firebase.firestore.FirebaseFirestore
@@ -12,18 +13,16 @@ class OfflineSyncWorker(context: Context, params: WorkerParameters) : CoroutineW
         return try {
             val db = FirebaseFirestore.getInstance()
             
-            // This is a placeholder for actual offline sync logic.
-            // With Firestore, offline persistence handles most of the basic syncing automatically.
-            // However, we can use this worker to process tasks that failed while offline, 
-            // such as re-triggering AI adjudications or uploading heavy documents to Storage.
+            // Aggressively fetch claims to populate local Firestore cache
+            db.collection("claims").get().await()
             
-            // For now, we will just force a fetch to ensure the local cache is synchronized
-            // with the remote database once the network is back.
-            db.collection("claims").limit(1).get().await()
+            // Aggressively fetch policies to populate local Firestore cache
+            db.collection("policies").get().await()
             
+            Log.d("OfflineSyncWorker", "Successfully cached claims and policies for offline use.")
             Result.success()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w("OfflineSyncWorker", "Sync failed, will retry: ${e.message}")
             Result.retry()
         }
     }

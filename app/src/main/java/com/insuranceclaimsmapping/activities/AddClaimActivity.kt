@@ -1,24 +1,30 @@
 package com.insuranceclaimsmapping.activities
 
+import android.content.DialogInterface
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import android.util.Log
-import android.widget.Button
-import android.widget.EditText
+import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.insuranceclaimsmapping.R
-import com.insuranceclaimsmapping.ai.GeminiHelper
-import com.insuranceclaimsmapping.firebase.FirebaseHelper
-import com.insuranceclaimsmapping.models.Claim
 import com.google.firebase.Timestamp
-import android.content.Intent
-import android.speech.RecognizerIntent
+import com.google.firebase.auth.FirebaseAuth
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.RESULT_FORMAT_JPEG
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.SCANNER_MODE_FULL
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
+import com.insuranceclaimsmapping.R
+import com.insuranceclaimsmapping.ai.OfflineInferenceHelper
+import com.insuranceclaimsmapping.databinding.ActivityAddClaimBinding
+import com.insuranceclaimsmapping.firebase.FirebaseHelper
+import com.insuranceclaimsmapping.models.Claim
+import com.insuranceclaimsmapping.models.User
+import com.insuranceclaimsmapping.utils.PrefManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -27,340 +33,297 @@ class AddClaimActivity : AppCompatActivity() {
     private var photoUri: Uri? = null
     private var billFileUri: Uri? = null
     private val firebaseHelper = FirebaseHelper()
-    private val geminiHelper by lazy { GeminiHelper(this) }
+    private val offlineInferenceHelper by lazy { OfflineInferenceHelper(this) }
+    private var resolvedPatientUid: String? = null
+    private lateinit var binding: ActivityAddClaimBinding
 
-    private val permissionLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { isGranted ->
-        if (isGranted) {
-            openCamera()
-        } else {
-            Toast.makeText(this, "Camera Permission is required to scan bills", Toast.LENGTH_SHORT).show()
-        }
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) openCamera()
+        else Toast.makeText(this, "Camera Permission is required to scan bills", Toast.LENGTH_SHORT).show()
     }
 
-    private val scannerLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { result ->
+    private val scannerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
         if (result.resultCode == RESULT_OK) {
             val scanResult = com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult.fromActivityResultIntent(result.data)
-            scanResult?.pages?.let { pages ->
-                if (pages.isNotEmpty()) {
-                    photoUri = pages[0].imageUri
-                    photoUri?.let { processImageWithAI(it) }
-                }
+            scanResult?.pages?.firstOrNull()?.imageUri?.let { uri ->
+                photoUri = uri
+                processImageWithAI(uri)
             }
         }
     }
 
-    private val speechLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
+    private val speechLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
         if (result.resultCode == RESULT_OK) {
-            val data = result.data
-            val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val results = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             if (!results.isNullOrEmpty()) {
-                val etDescription = findViewById<EditText>(R.id.etDescription)
-                val currentText = etDescription.text.toString()
-                etDescription.setText(if (currentText.isEmpty()) results[0] else "$currentText ${results[0]}")
-                etDescription.setSelection(etDescription.text.length)
+                val current = binding.etDescription.text.toString()
+                binding.etDescription.setText(if (current.isEmpty()) results[0] else "$current ${results[0]}")
+                binding.etDescription.setSelection(binding.etDescription.text.length)
             }
         }
     }
+
+    private val pdfLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { billFileUri = it; processPdfWithAI(it) } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_add_claim)
+        binding = ActivityAddClaimBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        val layoutManualInput = findViewById<android.widget.LinearLayout>(R.id.layoutManualInput)
-        val layoutProcessing = findViewById<android.widget.LinearLayout>(R.id.layoutProcessing)
-        val tvProcessingStatus = findViewById<android.widget.TextView>(R.id.tvProcessingStatus)
-
-        val etPatientId = findViewById<EditText>(R.id.etPatientId)
-        val etPatientName = findViewById<EditText>(R.id.etPatientName)
-        val etHospitalName = findViewById<EditText>(R.id.etHospitalName)
-        val etAmount = findViewById<EditText>(R.id.etAmount)
-        val etDescription = findViewById<EditText>(R.id.etDescription)
-        
-        val btnScan = findViewById<Button>(R.id.btnScan)
-        val btnUploadPdf = findViewById<Button>(R.id.btnUploadPdf)
-        val btnManual = findViewById<Button>(R.id.btnManual)
-        val btnSubmit = findViewById<Button>(R.id.btnSubmitClaim)
-
-        // Apply Role Styling
-        val prefManager = com.insuranceclaimsmapping.utils.PrefManager(this)
+        val prefManager = PrefManager(this)
         val role = prefManager.getRole() ?: "PATIENT"
         applyRoleBranding(role)
 
         if (role == "HOSPITAL") {
-            val etPatientId = findViewById<EditText>(R.id.etPatientId)
-            etPatientId.visibility = android.view.View.VISIBLE
+            binding.etPatientId.visibility = View.VISIBLE
+            setupPatientSearch()
         }
 
-        btnScan.setOnClickListener {
-            layoutManualInput.visibility = android.view.View.GONE
+        binding.btnScan.setOnClickListener {
+            binding.layoutManualInput.visibility = View.GONE
             openScanner()
         }
-
-        btnUploadPdf.setOnClickListener {
-            layoutManualInput.visibility = android.view.View.GONE
+        binding.btnUploadPdf.setOnClickListener {
+            binding.layoutManualInput.visibility = View.GONE
             pdfLauncher.launch("application/pdf")
         }
+        binding.btnManual.setOnClickListener { binding.layoutManualInput.visibility = View.VISIBLE }
 
-        btnManual.setOnClickListener {
-            layoutManualInput.visibility = android.view.View.VISIBLE
-        }
-
-        findViewById<android.widget.ImageButton>(R.id.btnMic).setOnClickListener {
+        binding.btnMic.setOnClickListener {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak the diagnosis or surgery details...")
             }
-            try {
-                speechLauncher.launch(intent)
-            } catch (e: Exception) {
-                Toast.makeText(this, "Speech recognition is not supported on this device.", Toast.LENGTH_SHORT).show()
-            }
+            try { speechLauncher.launch(intent) }
+            catch (e: Exception) { Toast.makeText(this, "Speech recognition not supported.", Toast.LENGTH_SHORT).show() }
         }
 
-        btnSubmit.setOnClickListener {
-            val patientIdInput = etPatientId.text.toString().trim()
-            val name = etPatientName.text.toString().trim()
-            val hospital = etHospitalName.text.toString().trim()
-            val amount = etAmount.text.toString().trim()
-            val description = etDescription.text.toString().trim()
+        binding.btnSubmitClaim.setOnClickListener {
+            val patientIdInput = binding.etPatientId.text.toString().trim()
+            val name = binding.etPatientName.text.toString().trim()
+            val hospital = binding.etHospitalName.text.toString().trim()
+            val amount = binding.etAmount.text.toString().trim()
+            val description = binding.etDescription.text.toString().trim()
 
             if (name.isEmpty() || hospital.isEmpty() || amount.isEmpty()) {
                 Toast.makeText(this, "Please fill required fields", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            if (role == "HOSPITAL" && patientIdInput.isNotEmpty()) {
-                // Link claim to specific patient account
-                firebaseHelper.getUserIdByCustomId(patientIdInput, { patientUid ->
-                    if (patientUid != null) {
-                        submitClaimWithLink(null, name, hospital, amount, description, emptyList(), patientUid)
+            val currentUid = FirebaseAuth.getInstance().currentUser?.uid
+            if (currentUid == null) {
+                Toast.makeText(this, "You must be logged in to submit a claim.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            if (amount.toDoubleOrNull() == null || amount.toDouble() <= 0) {
+                Toast.makeText(this, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val patientIdForDupe = if (role == "PATIENT") currentUid else (resolvedPatientUid ?: "")
+            if (patientIdForDupe.isNotEmpty()) {
+                firebaseHelper.getDuplicateClaims(patientIdForDupe, hospital, amount) { isDuplicate: Boolean ->
+                    if (isFinishing || isDestroyed) return@getDuplicateClaims
+                    if (isDuplicate) {
+                        AlertDialog.Builder(this)
+                            .setTitle("Possible Duplicate")
+                            .setMessage("A claim with the same patient, hospital, and amount already exists. Submit anyway?")
+                            .setPositiveButton("Submit Anyway") { _, _ -> proceedWithSubmit(role, patientIdInput, name, hospital, amount, description) }
+                            .setNegativeButton("Cancel", null)
+                            .show()
                     } else {
-                        Toast.makeText(this, "Patient ID $patientIdInput not found. Proceeding as unlinked.", Toast.LENGTH_LONG).show()
-                        submitClaimWithLink(null, name, hospital, amount, description, emptyList(), null)
+                        proceedWithSubmit(role, patientIdInput, name, hospital, amount, description)
                     }
-                }, {
-                    Toast.makeText(this, "Error finding Patient ID: ${it.message}", Toast.LENGTH_SHORT).show()
-                })
+                }
             } else {
-                submitClaim(null, name, hospital, amount, description, emptyList())
+                proceedWithSubmit(role, patientIdInput, name, hospital, amount, description)
             }
         }
     }
 
-    private val cameraLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.TakePicture()) { success ->
-        if (success) {
-            photoUri?.let { processImageWithAI(it) }
+    private fun setupPatientSearch() {
+        binding.etPatientId.setOnEditorActionListener { _, _, _ ->
+            val query = binding.etPatientId.text.toString().trim()
+            if (query.length >= 2) {
+                firebaseHelper.getUsersByName(query, { users: List<User> ->
+                    if (isFinishing || isDestroyed) return@getUsersByName
+                    if (users.isNotEmpty()) {
+                        val names = users.map { "${it.displayName} (${it.customId})" }.toTypedArray()
+                        AlertDialog.Builder(this)
+                            .setTitle("Select Patient")
+                            .setItems(names as Array<out CharSequence>) { _: DialogInterface, idx: Int ->
+                                val selected = users[idx]
+                                binding.etPatientId.setText(selected.customId)
+                                resolvedPatientUid = selected.uid
+                                binding.etPatientName.setText(selected.displayName)
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    } else {
+                        Toast.makeText(this, "No patients found matching '$query'", Toast.LENGTH_SHORT).show()
+                    }
+                }, { e: Exception ->
+                    if (isFinishing || isDestroyed) return@getUsersByName
+                    Toast.makeText(this, "Search error: ${e.message}", Toast.LENGTH_SHORT).show()
+                })
+            }
+            false
         }
     }
 
-    private val pdfLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
-            billFileUri = it
-            processPdfWithAI(it)
+    private fun proceedWithSubmit(role: String, patientIdInput: String, name: String, hospital: String, amount: String, description: String) {
+        if (role == "HOSPITAL" && patientIdInput.isNotEmpty() && resolvedPatientUid == null) {
+            firebaseHelper.getUserIdByCustomId(patientIdInput, { patientUid: String? ->
+                if (isFinishing || isDestroyed) return@getUserIdByCustomId
+                submitClaim(null, name, hospital, amount, description, emptyList(), patientUid)
+            }, { e: Exception ->
+                if (isFinishing || isDestroyed) return@getUserIdByCustomId
+                Toast.makeText(this, "Error finding Patient ID: ${e.message}", Toast.LENGTH_SHORT).show()
+            })
+        } else {
+            submitClaim(null, name, hospital, amount, description, emptyList(), if (role == "PATIENT") FirebaseAuth.getInstance().currentUser?.uid else resolvedPatientUid)
         }
+    }
+
+    private fun openCamera() {
+        val file = java.io.File.createTempFile("bill_", ".jpg", getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES))
+        photoUri = androidx.core.content.FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
+        cameraLauncher.launch(photoUri)
+    }
+
+    private val cameraLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success: Boolean ->
+        if (success) photoUri?.let { processImageWithAI(it) }
     }
 
     private fun processImageWithAI(uri: Uri) {
-        val layoutProcessing = findViewById<android.widget.LinearLayout>(R.id.layoutProcessing)
-        layoutProcessing.visibility = android.view.View.VISIBLE
-        
-        lifecycleScope.launch {
+        binding.layoutProcessing.visibility = View.VISIBLE
+        lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Convert URI to Bitmap
                 val bitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(contentResolver, uri))
                 } else {
+                    @Suppress("DEPRECATION")
                     android.provider.MediaStore.Images.Media.getBitmap(contentResolver, uri)
                 }
-                
-                val result = geminiHelper.extractItemizedBill(bitmap)
-                if (result.items.isNotEmpty() && result.hospitalName.isNotEmpty()) {
-                    val totalAmount = result.items.sumOf { it.amount }.toString()
-                    val diagnosis = result.items.joinToString(", ") { it.description }
-                    submitClaim(uri.toString(), result.patientName, result.hospitalName, totalAmount, diagnosis, result.items)
-                } else {
-                    showManualFallback("AI could not extract enough information from the bill. Please enter manually.")
+                val result = offlineInferenceHelper.extractItemizedBill(bitmap)
+                withContext(Dispatchers.Main) {
+                    if (isFinishing || isDestroyed) return@withContext
+                    if (result.items.isNotEmpty() && result.hospitalName.isNotEmpty()) {
+                        submitClaim(uri.toString(), result.patientName, result.hospitalName,
+                            result.items.sumOf { it.amount }.toString(),
+                            result.items.joinToString(", ") { it.description }, result.items, null)
+                    } else {
+                        showManualFallback("AI could not extract information. Enter manually.")
+                    }
                 }
             } catch (e: Exception) {
-                val errorMsg = "AI Error: ${e.localizedMessage ?: "Unknown Error"}"
-                Log.e("GeminiError", errorMsg, e)
-                showManualFallback(errorMsg)
+                Log.e("GeminiError", "AI Error", e)
+                withContext(Dispatchers.Main) {
+                    if (isFinishing || isDestroyed) return@withContext
+                    showManualFallback("AI Error: ${e.message}") 
+                }
             } finally {
-                layoutProcessing.visibility = android.view.View.GONE
+                withContext(Dispatchers.Main) { 
+                    if (!isFinishing && !isDestroyed) {
+                        binding.layoutProcessing.visibility = View.GONE 
+                    }
+                }
             }
         }
     }
 
     private fun processPdfWithAI(uri: Uri) {
-        val layoutProcessing = findViewById<android.widget.LinearLayout>(R.id.layoutProcessing)
-        layoutProcessing.visibility = android.view.View.VISIBLE
-        
+        binding.layoutProcessing.visibility = View.VISIBLE
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val fileDescriptor = contentResolver.openFileDescriptor(uri, "r")
-                if (fileDescriptor != null) {
+                val fd = contentResolver.openFileDescriptor(uri, "r") ?: return@launch
+                fd.use { fileDescriptor ->
                     val renderer = android.graphics.pdf.PdfRenderer(fileDescriptor)
-                    if (renderer.pageCount > 0) {
-                        val page = renderer.openPage(0)
-                        val bitmap = android.graphics.Bitmap.createBitmap(page.width * 2, page.height * 2, android.graphics.Bitmap.Config.ARGB_8888)
-                        page.render(bitmap, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                        
-                        withContext(Dispatchers.Main) {
-                            processRenderedBitmap(bitmap, uri.toString())
+                    renderer.use {
+                        if (it.pageCount > 0) {
+                            val page = it.openPage(0)
+                            val bitmap = android.graphics.Bitmap.createBitmap(page.width * 2, page.height * 2, android.graphics.Bitmap.Config.ARGB_8888)
+                            page.use { p -> p.render(bitmap, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY) }
+                            val result = offlineInferenceHelper.extractItemizedBill(bitmap)
+                            withContext(Dispatchers.Main) {
+                                if (isFinishing || isDestroyed) return@withContext
+                                if (result.items.isNotEmpty()) {
+                                    submitClaim(uri.toString(), result.patientName, result.hospitalName, result.items.sumOf { it.amount }.toString(), result.items.joinToString { it.description }, result.items, null)
+                                } else showManualFallback("AI could not extract PDF data.")
+                            }
                         }
-                        page.close()
                     }
-                    renderer.close()
-                    fileDescriptor.close()
                 }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    showManualFallback("PDF AI Error: ${e.localizedMessage ?: "Unknown Error"}")
+                withContext(Dispatchers.Main) { 
+                    if (isFinishing || isDestroyed) return@withContext
+                    showManualFallback("PDF AI Error: ${e.message}") 
                 }
             } finally {
-                withContext(Dispatchers.Main) {
-                    layoutProcessing.visibility = android.view.View.GONE
+                withContext(Dispatchers.Main) { 
+                    if (!isFinishing && !isDestroyed) {
+                        binding.layoutProcessing.visibility = View.GONE 
+                    }
                 }
-            }
-        }
-    }
-
-    private fun processRenderedBitmap(bitmap: android.graphics.Bitmap, fileUrl: String) {
-        lifecycleScope.launch {
-            try {
-                val result = geminiHelper.extractItemizedBill(bitmap)
-                if (result.items.isNotEmpty() && result.hospitalName.isNotEmpty()) {
-                    val totalAmount = result.items.sumOf { it.amount }.toString()
-                    val diagnosis = result.items.joinToString(", ") { it.description }
-                    submitClaim(fileUrl, result.patientName, result.hospitalName, totalAmount, diagnosis, result.items)
-                } else {
-                    showManualFallback("AI could not extract enough information from the PDF. Please enter manually.")
-                }
-            } catch (e: Exception) {
-                showManualFallback("AI PDF Error: ${e.localizedMessage ?: "Unknown Error"}")
             }
         }
     }
 
     private fun showManualFallback(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-        findViewById<android.widget.LinearLayout>(R.id.layoutManualInput).visibility = android.view.View.VISIBLE
+        binding.layoutManualInput.visibility = View.VISIBLE
     }
 
-    private fun submitClaim(billUrl: String?, name: String, hospital: String, amount: String, description: String, items: List<com.insuranceclaimsmapping.models.BillItem>) {
-        val prefManager = com.insuranceclaimsmapping.utils.PrefManager(this)
-        val role = prefManager.getRole() ?: "PATIENT"
-        val currUserId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
-
+    private fun submitClaim(billUrl: String?, name: String, hospital: String, amount: String, description: String, items: List<com.insuranceclaimsmapping.models.BillItem>, patientId: String?) {
+        val role = PrefManager(this).getRole() ?: "PATIENT"
+        val currUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
         val claim = Claim(
-            name = name,
-            hospital = hospital,
-            amount = amount,
-            description = description,
+            name = name, hospital = hospital, amount = amount, description = description,
             userId = if (role == "PATIENT") "" else currUserId,
-            patientId = if (role == "PATIENT") currUserId else "", 
-            billUrl = billUrl ?: "",
-            items = items,
-            isBillLoaded = true,
-            isPolicyLoaded = true,
-            timestamp = Timestamp.now()
+            patientId = if (role == "PATIENT") currUserId else (patientId ?: ""),
+            billUrl = billUrl ?: "", items = items,
+            isBillLoaded = true, isPolicyLoaded = true, timestamp = Timestamp.now()
         )
-
-        firebaseHelper.addClaim(claim, { docId ->
-            Toast.makeText(this, "Claim Submitted Successfully", Toast.LENGTH_SHORT).show()
-            val intent = android.content.Intent(this, ClaimDetailActivity::class.java).apply {
-                putExtra("claimId", docId)
-                putExtra("hospital", hospital)
-                putExtra("patient", name)
-                putExtra("amount", amount)
-                putExtra("status", "PENDING")
-            }
-            startActivity(intent)
+        firebaseHelper.addClaim(claim, { docId: String ->
+            if (isFinishing || isDestroyed) return@addClaim
+            Toast.makeText(this, "Claim Submitted", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, ClaimDetailActivity::class.java).apply { putExtra("claimId", docId) })
             finish()
-        }, {
-            Toast.makeText(this, "Submission Failed: ${it.message}", Toast.LENGTH_SHORT).show()
-        })
-    }
-
-    private fun submitClaimWithLink(billUrl: String?, name: String, hospital: String, amount: String, description: String, items: List<com.insuranceclaimsmapping.models.BillItem>, linkedPatientId: String?) {
-        val prefManager = com.insuranceclaimsmapping.utils.PrefManager(this)
-        val role = prefManager.getRole() ?: "PATIENT"
-        val currUserId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
-
-        val claim = Claim(
-            name = name,
-            hospital = hospital,
-            amount = amount,
-            description = description,
-            userId = if (role == "PATIENT") "" else currUserId,
-            patientId = if (role == "PATIENT") currUserId else (linkedPatientId ?: ""), 
-            customPatientId = if (role == "HOSPITAL") findViewById<EditText>(R.id.etPatientId).text.toString() else "",
-            billUrl = billUrl ?: "",
-            items = items,
-            isBillLoaded = true,
-            isPolicyLoaded = true,
-            timestamp = com.google.firebase.Timestamp.now()
-        )
-
-        firebaseHelper.addClaim(claim, { docId ->
-            Toast.makeText(this, "Claim Submitted Successfully", Toast.LENGTH_SHORT).show()
-            val intent = android.content.Intent(this, ClaimDetailActivity::class.java).apply {
-                putExtra("claimId", docId)
-                putExtra("hospital", hospital)
-                putExtra("patient", name)
-                putExtra("amount", amount)
-                putExtra("status", "PENDING")
-            }
-            startActivity(intent)
-            finish()
-        }, {
-            Toast.makeText(this, "Submission Failed: ${it.message}", Toast.LENGTH_SHORT).show()
+        }, { e: Exception -> 
+            if (isFinishing || isDestroyed) return@addClaim
+            Toast.makeText(this, "Failed: ${e.message}", Toast.LENGTH_SHORT).show() 
         })
     }
 
     private fun applyRoleBranding(role: String) {
-        val root = findViewById<android.view.View>(R.id.rootAddClaim)
-        val header = findViewById<android.widget.TextView>(R.id.tvAddClaimHeader)
-        
-        val (bg, color) = when (role) {
-            "HOSPITAL" -> R.color.green_light to android.graphics.Color.parseColor("#2E7D32")
-            "INSURER" -> R.color.blue_light to android.graphics.Color.parseColor("#1565C0")
-            "PATIENT" -> R.color.yellow_light to android.graphics.Color.parseColor("#F57F17")
-            else -> R.color.gray to android.graphics.Color.parseColor("#00796B")
+        val (bg, colorRes) = when (role) {
+            "HOSPITAL" -> R.color.green_light to R.color.hospital_primary
+            "INSURER"  -> R.color.blue_light  to R.color.insurer_primary
+            "PATIENT"  -> R.color.yellow_light to R.color.patient_primary
+            else       -> R.color.gray         to R.color.default_primary
         }
-        
-        root?.setBackgroundResource(bg)
-        header?.setTextColor(color)
-        window.statusBarColor = color
+        binding.rootAddClaim.setBackgroundResource(bg)
+        binding.tvAddClaimHeader.setTextColor(getColor(colorRes))
+        window.statusBarColor = getColor(colorRes)
     }
 
     private fun openScanner() {
-        val options = GmsDocumentScannerOptions.Builder()
-            .setGalleryImportAllowed(true)
-            .setResultFormats(RESULT_FORMAT_JPEG)
-            .setScannerMode(SCANNER_MODE_FULL)
-            .build()
-        
-        GmsDocumentScanning.getClient(options).getStartScanIntent(this)
-            .addOnSuccessListener { intentSender ->
-                scannerLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(intentSender).build())
-            }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed to start scanner: ${e.message}", Toast.LENGTH_SHORT).show()
-                // Fallback to traditional camera if scanner is unavailable
-                if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    openCamera()
-                } else {
-                    permissionLauncher.launch(android.Manifest.permission.CAMERA)
-                }
-            }
-    }
-
-    private fun openCamera() {
-        val fileName = "bill_${System.currentTimeMillis()}.jpg"
-        val storageDir = getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES)
-        val file = java.io.File.createTempFile(fileName, ".jpg", storageDir)
-        photoUri = androidx.core.content.FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
-        cameraLauncher.launch(photoUri)
+        val options = GmsDocumentScannerOptions.Builder().setGalleryImportAllowed(true).setResultFormats(RESULT_FORMAT_JPEG).setScannerMode(SCANNER_MODE_FULL).build()
+        GmsDocumentScanning.getClient(options).getStartScanIntent(this).addOnSuccessListener { intentSender ->
+            scannerLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(intentSender).build())
+        }.addOnFailureListener { e ->
+            if (isFinishing || isDestroyed) return@addOnFailureListener
+            Toast.makeText(this, "Scanner Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            permissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
     }
 }

@@ -9,5 +9,6 @@ data class User(
     val profilePictureUrl: String = "",
     val phoneNumber: String = "",
     val insuranceProviderId: String = "",
+    val fcmToken: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )

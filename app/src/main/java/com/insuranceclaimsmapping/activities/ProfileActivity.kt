@@ -4,13 +4,15 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
-import android.widget.*
+import android.view.View
+import android.widget.EditText
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import com.bumptech.glide.Glide
-import com.google.android.material.switchmaterial.SwitchMaterial
 import com.insuranceclaimsmapping.R
+import com.insuranceclaimsmapping.databinding.ActivityProfileBinding
 import com.insuranceclaimsmapping.firebase.FirebaseHelper
 import com.insuranceclaimsmapping.models.User
 import com.insuranceclaimsmapping.utils.PrefManager
@@ -19,51 +21,35 @@ class ProfileActivity : AppCompatActivity() {
     private val firebaseHelper = FirebaseHelper()
     private lateinit var prefManager: PrefManager
     private var currentUserData: User? = null
+    private lateinit var binding: ActivityProfileBinding
 
-    private lateinit var ivProfilePicture: ImageView
-    private lateinit var tvName: TextView
-    private lateinit var tvPhone: TextView
-
-    private val imagePickerLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+    private val imagePickerLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (isFinishing || isDestroyed) return@registerForActivityResult
         uri?.let { uploadProfilePicture(it) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_profile)
+        binding = ActivityProfileBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         prefManager = PrefManager(this)
-
-        ivProfilePicture = findViewById(R.id.ivProfilePicture)
-        tvName = findViewById(R.id.tvProfileName)
-        val tvId = findViewById<TextView>(R.id.tvProfileId)
-        val tvRole = findViewById<TextView>(R.id.tvProfileRole)
-        val tvEmail = findViewById<TextView>(R.id.tvProfileEmail)
-        tvPhone = findViewById(R.id.tvProfilePhone)
-
-        val btnLogout = findViewById<Button>(R.id.btnLogout)
-        val btnEditProfile = findViewById<Button>(R.id.btnEditProfile)
-        val swNotifications = findViewById<SwitchMaterial>(R.id.swNotifications)
-        val swDarkMode = findViewById<SwitchMaterial>(R.id.swDarkMode)
-        val cvInsuranceProvider = findViewById<androidx.cardview.widget.CardView>(R.id.cvInsuranceProvider)
-        val etInsuranceProviderId = findViewById<EditText>(R.id.etInsuranceProviderId)
-        val btnSaveInsurance = findViewById<Button>(R.id.btnSaveInsurance)
 
         val role = prefManager.getRole() ?: "PATIENT"
         applyRoleBranding(role)
 
         if (role == "PATIENT") {
-            cvInsuranceProvider.visibility = android.view.View.VISIBLE
+            binding.cvInsuranceProvider.visibility = View.VISIBLE
         }
 
         // Initialize Switches
-        swNotifications.isChecked = prefManager.getNotificationsEnabled()
-        swNotifications.setOnCheckedChangeListener { _, isChecked ->
+        binding.swNotifications.isChecked = prefManager.getNotificationsEnabled()
+        binding.swNotifications.setOnCheckedChangeListener { _, isChecked ->
             prefManager.setNotificationsEnabled(isChecked)
         }
 
-        swDarkMode.isChecked = prefManager.getDarkModeEnabled()
-        swDarkMode.setOnCheckedChangeListener { _, isChecked ->
+        binding.swDarkMode.isChecked = prefManager.getDarkModeEnabled()
+        binding.swDarkMode.setOnCheckedChangeListener { _, isChecked ->
             prefManager.setDarkModeEnabled(isChecked)
             AppCompatDelegate.setDefaultNightMode(
                 if (isChecked) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
@@ -72,34 +58,36 @@ class ProfileActivity : AppCompatActivity() {
 
         val currentUser = firebaseHelper.getCurrentUser()
         if (currentUser != null) {
-            firebaseHelper.getUserProfile(currentUser.uid, { user ->
+            firebaseHelper.getUserProfile(currentUser.uid, { user: User? ->
+                if (isFinishing || isDestroyed) return@getUserProfile
                 if (user != null) {
                     currentUserData = user
-                    tvName.text = user.displayName.ifEmpty { "User" }
-                    tvId.text = "User ID: ${user.customId}"
-                    tvRole.text = "Account Type: ${user.role}"
-                    tvEmail.text = user.email
-                    tvPhone.text = if (user.phoneNumber.isNotEmpty()) user.phoneNumber else "No phone added"
+                    binding.tvProfileName.text = user.displayName.ifEmpty { "User" }
+                    binding.tvProfileId.text = "User ID: ${user.customId}"
+                    binding.tvProfileRole.text = "Account Type: ${user.role}"
+                    binding.tvProfileEmail.text = user.email
+                    binding.tvProfilePhone.text = if (user.phoneNumber.isNotEmpty()) user.phoneNumber else "No phone added"
                     
                     if (user.insuranceProviderId.isNotEmpty()) {
-                        etInsuranceProviderId.setText(user.insuranceProviderId)
+                        binding.etInsuranceProviderId.setText(user.insuranceProviderId)
                     }
 
                     if (user.profilePictureUrl.isNotEmpty()) {
-                        Glide.with(this).load(user.profilePictureUrl).into(ivProfilePicture)
+                        Glide.with(this).load(user.profilePictureUrl).into(binding.ivProfilePicture)
                     }
                 }
             }, {
-                tvEmail.text = prefManager.getEmail() ?: "User Email"
-                tvId.text = "User ID: ${prefManager.getCustomId() ?: "N/A"}"
+                if (isFinishing || isDestroyed) return@getUserProfile
+                binding.tvProfileEmail.text = prefManager.getEmail() ?: "User Email"
+                binding.tvProfileId.text = "User ID: ${prefManager.getCustomId() ?: "N/A"}"
             })
         }
 
-        btnEditProfile.setOnClickListener { showEditProfileDialog() }
-        ivProfilePicture.setOnClickListener { imagePickerLauncher.launch("image/*") }
+        binding.btnEditProfile.setOnClickListener { showEditProfileDialog() }
+        binding.ivProfilePicture.setOnClickListener { imagePickerLauncher.launch("image/*") }
         
-        btnSaveInsurance.setOnClickListener {
-            val providerId = etInsuranceProviderId.text.toString().trim()
+        binding.btnSaveInsurance.setOnClickListener {
+            val providerId = binding.etInsuranceProviderId.text.toString().trim()
             if (providerId.isEmpty()) {
                 Toast.makeText(this, "Please enter a valid Provider ID", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -107,15 +95,17 @@ class ProfileActivity : AppCompatActivity() {
             currentUserData?.let {
                 val updatedUser = it.copy(insuranceProviderId = providerId)
                 firebaseHelper.updateUserProfile(updatedUser, {
+                    if (isFinishing || isDestroyed) return@updateUserProfile
                     currentUserData = updatedUser
                     Toast.makeText(this, "Insurance Provider Saved", Toast.LENGTH_SHORT).show()
-                }, { e ->
+                }, { e: Exception ->
+                    if (isFinishing || isDestroyed) return@updateUserProfile
                     Toast.makeText(this, "Failed to save: ${e.message}", Toast.LENGTH_SHORT).show()
                 })
             }
         }
 
-        btnLogout.setOnClickListener {
+        binding.btnLogout.setOnClickListener {
             firebaseHelper.logout()
             prefManager.logout()
             val intent = Intent(this, LoginActivity::class.java)
@@ -143,12 +133,14 @@ class ProfileActivity : AppCompatActivity() {
                 
                 val updatedUser = user.copy(displayName = newName, phoneNumber = newPhone)
                 firebaseHelper.updateUserProfile(updatedUser, {
+                    if (isFinishing || isDestroyed) return@updateUserProfile
                     currentUserData = updatedUser
-                    tvName.text = newName.ifEmpty { "User" }
-                    tvPhone.text = newPhone.ifEmpty { "No phone added" }
+                    binding.tvProfileName.text = newName.ifEmpty { "User" }
+                    binding.tvProfilePhone.text = newPhone.ifEmpty { "No phone added" }
                     Toast.makeText(this, "Profile updated", Toast.LENGTH_SHORT).show()
-                }, {
-                    Toast.makeText(this, "Update failed: ${it.message}", Toast.LENGTH_SHORT).show()
+                }, { e: Exception ->
+                    if (isFinishing || isDestroyed) return@updateUserProfile
+                    Toast.makeText(this, "Update failed: ${e.message}", Toast.LENGTH_SHORT).show()
                 })
             }
             .setNegativeButton("Cancel", null)
@@ -158,33 +150,34 @@ class ProfileActivity : AppCompatActivity() {
     private fun uploadProfilePicture(uri: Uri) {
         val user = currentUserData ?: return
         Toast.makeText(this, "Uploading...", Toast.LENGTH_SHORT).show()
-        firebaseHelper.uploadProfilePicture(uri, user.uid, { downloadUrl ->
+        firebaseHelper.uploadProfilePicture(uri, user.uid, { downloadUrl: String ->
+            if (isFinishing || isDestroyed) return@uploadProfilePicture
             val updatedUser = user.copy(profilePictureUrl = downloadUrl)
             firebaseHelper.updateUserProfile(updatedUser, {
+                if (isFinishing || isDestroyed) return@updateUserProfile
                 currentUserData = updatedUser
-                Glide.with(this).load(downloadUrl).into(ivProfilePicture)
+                Glide.with(this).load(downloadUrl).into(binding.ivProfilePicture)
                 Toast.makeText(this, "Profile picture updated", Toast.LENGTH_SHORT).show()
-            }, {
-                Toast.makeText(this, "Failed to save picture URL", Toast.LENGTH_SHORT).show()
+            }, { e: Exception ->
+                if (isFinishing || isDestroyed) return@updateUserProfile
+                Toast.makeText(this, "Failed to save picture URL: ${e.message}", Toast.LENGTH_SHORT).show()
             })
-        }, {
-            Toast.makeText(this, "Upload failed: ${it.message}", Toast.LENGTH_SHORT).show()
+        }, { e: Exception ->
+            if (isFinishing || isDestroyed) return@uploadProfilePicture
+            Toast.makeText(this, "Upload failed: ${e.message}", Toast.LENGTH_SHORT).show()
         })
     }
 
     private fun applyRoleBranding(role: String) {
-        val root = findViewById<android.view.View>(R.id.rootProfile)
-        val nameLabel = findViewById<TextView>(R.id.tvProfileName)
-        
-        val (bg, color) = when (role) {
-            "HOSPITAL" -> R.color.green_light to android.graphics.Color.parseColor("#2E7D32")
-            "INSURER" -> R.color.blue_light to android.graphics.Color.parseColor("#1565C0")
-            "PATIENT" -> R.color.yellow_light to android.graphics.Color.parseColor("#F57F17")
-            else -> R.color.gray to android.graphics.Color.parseColor("#00796B")
+        val (bg, colorRes, statusColorRes) = when (role) {
+            "HOSPITAL" -> Triple(R.color.green_light, R.color.hospital_primary, R.color.hospital_dark)
+            "INSURER"  -> Triple(R.color.blue_light,  R.color.insurer_primary,  R.color.insurer_dark)
+            "PATIENT"  -> Triple(R.color.yellow_light, R.color.patient_primary, R.color.patient_dark)
+            else       -> Triple(R.color.gray,         R.color.default_primary, R.color.default_dark)
         }
-        
-        root?.setBackgroundResource(bg)
-        nameLabel?.setTextColor(color)
-        window.statusBarColor = color
+
+        binding.rootProfile.setBackgroundResource(bg)
+        binding.tvProfileName.setTextColor(getColor(colorRes))
+        window.statusBarColor = getColor(statusColorRes)
     }
 }

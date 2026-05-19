@@ -6,5 +6,7 @@ data class Policy(
     val pdfUrl: String = "",
     val copayPercentage: Double = 0.0,
     val deductibleLimit: Double = 0.0,
-    val coverageDetails: String = ""
+    val coverageDetails: String = "",
+    val version: Int = 1,
+    val uploadedAt: Long = System.currentTimeMillis()
 )

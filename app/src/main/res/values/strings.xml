@@ -24,4 +24,10 @@
     <string name="role_patient">Patient</string>
     <string name="role_hospital">Hospital</string>
     <string name="role_insurer">Insurer</string>
+    <string name="biometric_login">Sign in with Biometrics</string>
+    <string name="appeal_claim">Appeal This Rejection</string>
+    <string name="fraud_dashboard">Fraud Dashboard</string>
+    <string name="insurance_card">My Insurance Card</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="policy_history">View Policy Version History</string>
 </resources>

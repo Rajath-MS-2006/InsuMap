@@ -115,6 +115,19 @@
                 android:textColor="@color/colorPrimaryDark"
                 android:visibility="gone" />
 
+            <Button
+                android:id="@+id/btnViewPolicyHistory"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:layout_marginTop="12dp"
+                android:backgroundTint="#E3F2FD"
+                android:elevation="2dp"
+                android:stateListAnimator="@null"
+                android:text="View Policy Version History"
+                android:textAllCaps="false"
+                android:textColor="#1565C0"
+                android:visibility="gone" />
+
         </LinearLayout>
     </ScrollView>
 </LinearLayout>
