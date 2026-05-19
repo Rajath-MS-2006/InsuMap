@@ -1,11 +1,10 @@
 package com.insuranceclaimsmapping.adapters
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.insuranceclaimsmapping.R
+import com.insuranceclaimsmapping.databinding.ItemClaimBinding
 import com.insuranceclaimsmapping.models.Claim
 
 class ClaimAdapter(private var claims: List<Claim>) :
@@ -17,34 +16,29 @@ class ClaimAdapter(private var claims: List<Claim>) :
         onItemClickListener = listener
     }
 
-    class ClaimViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val tvHospital: TextView = itemView.findViewById(R.id.tvItemHospital)
-        val tvAmount: TextView = itemView.findViewById(R.id.tvItemAmount)
-        val tvName: TextView = itemView.findViewById(R.id.tvItemName)
-        val tvStatus: TextView = itemView.findViewById(R.id.tvItemStatus)
-    }
+    class ClaimViewHolder(val binding: ItemClaimBinding) : RecyclerView.ViewHolder(binding.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ClaimViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_claim, parent, false)
-        return ClaimViewHolder(view)
+        val binding = ItemClaimBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return ClaimViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: ClaimViewHolder, position: Int) {
         val claim = claims[position]
         val context = holder.itemView.context
         
-        holder.tvHospital.text = claim.hospital
-        holder.tvAmount.text = "Amount: ₹${claim.amount}"
+        holder.binding.tvItemHospital.text = claim.hospital
+        holder.binding.tvItemAmount.text = "Amount: ₹${claim.amount}"
         val idDisplay = if (claim.customPatientId.isNotEmpty()) " (${claim.customPatientId})" else ""
-        holder.tvName.text = "Patient: ${claim.name}$idDisplay"
-        holder.tvStatus.text = claim.status
+        holder.binding.tvItemName.text = "Patient: ${claim.name}$idDisplay"
+        holder.binding.tvItemStatus.text = claim.status
         
         // Dynamic status background
         when (claim.status) {
-            "ADJUDICATED", "APPROVED" -> holder.tvStatus.setBackgroundResource(R.drawable.bg_status_approved)
-            "REJECTED" -> holder.tvStatus.setBackgroundResource(R.drawable.bg_status_pending)
-            "APPEAL_PENDING" -> holder.tvStatus.setBackgroundResource(R.drawable.bg_status_pending)
-            else -> holder.tvStatus.setBackgroundResource(R.drawable.bg_status_pending)
+            "ADJUDICATED", "APPROVED" -> holder.binding.tvItemStatus.setBackgroundResource(R.drawable.bg_status_approved)
+            "REJECTED" -> holder.binding.tvItemStatus.setBackgroundResource(R.drawable.bg_status_pending)
+            "APPEAL_PENDING" -> holder.binding.tvItemStatus.setBackgroundResource(R.drawable.bg_status_pending)
+            else -> holder.binding.tvItemStatus.setBackgroundResource(R.drawable.bg_status_pending)
         }
 
         holder.itemView.setOnClickListener {

@@ -34,27 +34,26 @@ class OfflineInferenceHelper(private val context: Context) {
                     }
                 }
 
-                val pfd = ParcelFileDescriptor.open(tempFile, ParcelFileDescriptor.MODE_READ_ONLY)
-                val renderer = PdfRenderer(pfd)
-                
                 val extractedText = StringBuilder()
-                
-                // Read up to first 3 pages
-                val pagesToRead = minOf(3, renderer.pageCount)
-                for (i in 0 until pagesToRead) {
-                    val page = renderer.openPage(i)
-                    val bitmap = Bitmap.createBitmap(page.width * 2, page.height * 2, Bitmap.Config.ARGB_8888)
-                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                    
-                    val image = InputImage.fromBitmap(bitmap, 0)
-                    val text = textRecognizer.process(image).await()
-                    extractedText.append(text.text).append("\n")
-                    
-                    page.close()
+
+                ParcelFileDescriptor.open(tempFile, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+                    PdfRenderer(pfd).use { renderer ->
+                        // Read up to first 3 pages
+                        val pagesToRead = minOf(3, renderer.pageCount)
+                        for (i in 0 until pagesToRead) {
+                            renderer.openPage(i).use { page ->
+                                val bitmap = Bitmap.createBitmap(
+                                    page.width * 2, page.height * 2, Bitmap.Config.ARGB_8888
+                                )
+                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                val image = InputImage.fromBitmap(bitmap, 0)
+                                val text = textRecognizer.process(image).await()
+                                extractedText.append(text.text).append("\n")
+                                bitmap.recycle()
+                            }
+                        }
+                    }
                 }
-                
-                renderer.close()
-                pfd.close()
                 tempFile.delete()
 
                 val rawText = extractedText.toString()
@@ -189,5 +188,16 @@ class OfflineInferenceHelper(private val context: Context) {
         val copayRegex = Regex("Copay: (\\d+(?:\\.\\d+)?)%")
         val match = copayRegex.find(rules)
         return match?.groupValues?.get(1) ?: "20"
+    }
+
+    /**
+     * Release the ML Kit TextRecognizer. Call from the owning component's onDestroy().
+     */
+    fun close() {
+        try {
+            textRecognizer.close()
+        } catch (e: Exception) {
+            Log.w("OfflineInference", "Error closing TextRecognizer: ${e.message}")
+        }
     }
 }

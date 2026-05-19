@@ -117,19 +117,17 @@ class ProfileActivity : AppCompatActivity() {
 
     private fun showEditProfileDialog() {
         val user = currentUserData ?: return
-        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_edit_profile, null)
-        val etName = dialogView.findViewById<EditText>(R.id.etEditName)
-        val etPhone = dialogView.findViewById<EditText>(R.id.etEditPhone)
+        val dialogBinding = com.insuranceclaimsmapping.databinding.DialogEditProfileBinding.inflate(layoutInflater)
         
-        etName.setText(user.displayName)
-        etPhone.setText(user.phoneNumber)
+        dialogBinding.etEditName.setText(user.displayName)
+        dialogBinding.etEditPhone.setText(user.phoneNumber)
 
         AlertDialog.Builder(this)
             .setTitle("Edit Profile")
-            .setView(dialogView)
+            .setView(dialogBinding.root)
             .setPositiveButton("Save") { _, _ ->
-                val newName = etName.text.toString().trim()
-                val newPhone = etPhone.text.toString().trim()
+                val newName = dialogBinding.etEditName.text.toString().trim()
+                val newPhone = dialogBinding.etEditPhone.text.toString().trim()
                 
                 val updatedUser = user.copy(displayName = newName, phoneNumber = newPhone)
                 firebaseHelper.updateUserProfile(updatedUser, {

@@ -326,4 +326,9 @@ class AddClaimActivity : AppCompatActivity() {
             permissionLauncher.launch(android.Manifest.permission.CAMERA)
         }
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        offlineInferenceHelper.close()
+    }
 }

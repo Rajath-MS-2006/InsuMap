@@ -145,7 +145,12 @@ class ClaimHistoryActivity : AppCompatActivity() {
     private fun fetchClaims() {
         val prefManager = com.insuranceclaimsmapping.utils.PrefManager(this)
         val role = prefManager.getRole() ?: "PATIENT"
-        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
+        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        if (uid.isNullOrEmpty()) {
+            Toast.makeText(this, "Session expired. Please log in again.", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
 
         firebaseHelper.getClaimsByRole(role, uid, { claims ->
             if (isFinishing || isDestroyed) return@getClaimsByRole

@@ -1,13 +1,9 @@
 package com.insuranceclaimsmapping.adapters
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.TextView
-import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
-import com.insuranceclaimsmapping.R
+import com.insuranceclaimsmapping.databinding.ItemDashboardBinding
 import com.insuranceclaimsmapping.models.DashboardItem
 
 class DashboardAdapter(
@@ -15,22 +11,18 @@ class DashboardAdapter(
     private val onItemClick: (DashboardItem) -> Unit
 ) : RecyclerView.Adapter<DashboardAdapter.ViewHolder>() {
 
-    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val card: CardView = view.findViewById(R.id.cardDashboard)
-        val icon: ImageView = view.findViewById(R.id.ivDashboardIcon)
-        val title: TextView = view.findViewById(R.id.tvDashboardTitle)
-    }
+    class ViewHolder(val binding: ItemDashboardBinding) : RecyclerView.ViewHolder(binding.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_dashboard, parent, false)
-        return ViewHolder(view)
+        val binding = ItemDashboardBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return ViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
-        holder.title.text = item.title
-        holder.icon.setImageResource(item.iconResId)
-        holder.card.setOnClickListener { onItemClick(item) }
+        holder.binding.tvDashboardTitle.text = item.title
+        holder.binding.ivDashboardIcon.setImageResource(item.iconResId)
+        holder.binding.cardDashboard.setOnClickListener { onItemClick(item) }
     }
 
     override fun getItemCount() = items.size

@@ -20,7 +20,8 @@
     <string name="submit">Submit Claim</string>
     <string name="error_empty_fields">Please fill all fields</string>
     <string name="error_invalid_email">Invalid email format</string>
-    <string name="default_web_client_id">YOUR_GOOGLE_CLIENT_ID_HERE</string>
+    <!-- TODO: Replace with your actual Web Client ID from Firebase Console > Authentication > Sign-in method > Google > Web client ID -->
+    <string name="default_web_client_id">YOUR_ACTUAL_WEB_CLIENT_ID_FROM_FIREBASE_CONSOLE</string>
     <string name="role_patient">Patient</string>
     <string name="role_hospital">Hospital</string>
     <string name="role_insurer">Insurer</string>

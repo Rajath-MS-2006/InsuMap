@@ -3,7 +3,6 @@ package com.insuranceclaimsmapping.activities
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.insuranceclaimsmapping.R
 import com.insuranceclaimsmapping.ai.OfflineInferenceHelper
+import com.insuranceclaimsmapping.databinding.ActivityUploadPolicyBinding
 import com.insuranceclaimsmapping.firebase.FirebaseHelper
 import com.insuranceclaimsmapping.models.Policy
 import com.google.firebase.auth.FirebaseAuth
@@ -24,10 +24,12 @@ class UploadPolicyActivity : AppCompatActivity() {
     private lateinit var firebaseHelper: FirebaseHelper
     private lateinit var offlineInferenceHelper: OfflineInferenceHelper
     private lateinit var auth: FirebaseAuth
+    private lateinit var binding: ActivityUploadPolicyBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_upload_policy)
+        binding = ActivityUploadPolicyBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         firebaseHelper = FirebaseHelper()
         offlineInferenceHelper = OfflineInferenceHelper(this)
@@ -37,39 +39,33 @@ class UploadPolicyActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
-        val rootLayout = findViewById<View>(R.id.rootLayoutPolicy)
-        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbarPolicy)
-        val btnViewPrevious = findViewById<android.widget.Button>(R.id.btnViewPreviousPolicy)
-        val btnViewHistory = findViewById<android.widget.Button>(R.id.btnViewPolicyHistory)
-        val llSelect = findViewById<LinearLayout>(R.id.llSelectPolicy)
-
-        setSupportActionBar(toolbar)
+        setSupportActionBar(binding.toolbarPolicy)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        toolbar.setNavigationOnClickListener { finish() }
+        binding.toolbarPolicy.setNavigationOnClickListener { finish() }
 
         auth.currentUser?.uid?.let { uid ->
             firebaseHelper.getUserProfile(uid, { user ->
                 if (isFinishing || isDestroyed) return@getUserProfile
-                user?.let { applyRoleStyling(it.role, rootLayout, toolbar) }
+                user?.let { applyRoleStyling(it.role) }
             }, { e -> 
                 if (isFinishing || isDestroyed) return@getUserProfile
                 android.util.Log.w("UploadPolicy", "Failed to load role: ${e.message}") 
             })
         }
 
-        llSelect.setOnClickListener { pdfLauncher.launch("application/pdf") }
+        binding.llSelectPolicy.setOnClickListener { pdfLauncher.launch("application/pdf") }
 
         val insurerId = auth.currentUser?.uid ?: ""
         firebaseHelper.getPolicy(insurerId, { policy ->
             if (isFinishing || isDestroyed) return@getPolicy
             if (policy != null && policy.coverageDetails.isNotEmpty()) {
-                btnViewPrevious.apply {
+                binding.btnViewPreviousPolicy.apply {
                     visibility = View.VISIBLE
                     text = "View Active Policy (v${policy.version})"
                     setOnClickListener { showPolicyDialog("Version ${policy.version}", policy.coverageDetails) }
                 }
-                btnViewHistory.visibility = View.VISIBLE
-                btnViewHistory.setOnClickListener { showPolicyHistory(insurerId) }
+                binding.btnViewPolicyHistory.visibility = View.VISIBLE
+                binding.btnViewPolicyHistory.setOnClickListener { showPolicyHistory(insurerId) }
             }
         }, { e -> 
             if (isFinishing || isDestroyed) return@getPolicy
@@ -102,15 +98,15 @@ class UploadPolicyActivity : AppCompatActivity() {
         })
     }
 
-    private fun applyRoleStyling(role: String, root: View, toolbar: androidx.appcompat.widget.Toolbar) {
+    private fun applyRoleStyling(role: String) {
         val (bg, colorRes) = when (role) {
             "HOSPITAL" -> R.color.green_light to R.color.hospital_primary
             "INSURER"  -> R.color.blue_light  to R.color.insurer_primary
             "PATIENT"  -> R.color.yellow_light to R.color.patient_primary
             else       -> R.color.gray         to R.color.default_primary
         }
-        root.setBackgroundResource(bg)
-        toolbar.setBackgroundColor(getColor(colorRes))
+        binding.rootLayoutPolicy.setBackgroundResource(bg)
+        binding.toolbarPolicy.setBackgroundColor(getColor(colorRes))
     }
 
     private fun showPolicyDialog(title: String, details: String) {
@@ -134,26 +130,23 @@ class UploadPolicyActivity : AppCompatActivity() {
     }
 
     private fun processPolicy(uri: Uri) {
-        val progressSection = findViewById<LinearLayout>(R.id.llProgressSection)
-        val tvStatus = findViewById<TextView>(R.id.tvPolicyStatus)
-
-        progressSection.visibility = View.VISIBLE
+        binding.llProgressSection.visibility = View.VISIBLE
 
         lifecycleScope.launch {
-            tvStatus.text = "Initializing logical scan of PDF document..."
+            binding.tvPolicyStatus.text = "Initializing logical scan of PDF document..."
             kotlinx.coroutines.delay(1000)
-            tvStatus.text = "Analyzing coverage rules and benefit limits..."
+            binding.tvPolicyStatus.text = "Analyzing coverage rules and benefit limits..."
             kotlinx.coroutines.delay(1500)
-            tvStatus.text = "Sanitizing extracted clinical data..."
+            binding.tvPolicyStatus.text = "Sanitizing extracted clinical data..."
 
             val extractionResult = offlineInferenceHelper.extractPolicyDetails(uri)
 
             if (extractionResult != null) {
-                tvStatus.text = "Extraction complete. Registering policy..."
+                binding.tvPolicyStatus.text = "Extraction complete. Registering policy..."
                 kotlinx.coroutines.delay(800)
 
                 val insurerId = auth.currentUser?.uid ?: run {
-                    progressSection.visibility = View.GONE
+                    binding.llProgressSection.visibility = View.GONE
                     Toast.makeText(this@UploadPolicyActivity, "Not logged in.", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
@@ -169,19 +162,25 @@ class UploadPolicyActivity : AppCompatActivity() {
                 // Use savePolicyWithHistory to version the policy
                 firebaseHelper.savePolicyWithHistory(policy, {
                     if (isFinishing || isDestroyed) return@savePolicyWithHistory
-                    progressSection.visibility = View.GONE
+                    binding.llProgressSection.visibility = View.GONE
                     Toast.makeText(this@UploadPolicyActivity, "Policy Updated Successfully!", Toast.LENGTH_SHORT).show()
                     finish()
                 }, { e: Exception ->
                     if (isFinishing || isDestroyed) return@savePolicyWithHistory
-                    progressSection.visibility = View.GONE
+                    binding.llProgressSection.visibility = View.GONE
                     Toast.makeText(this@UploadPolicyActivity, "Save Failed: ${e.message}", Toast.LENGTH_LONG).show()
                 })
             } else {
-                tvStatus.text = "Extraction failed. Please verify PDF format."
+                binding.tvPolicyStatus.text = "Extraction failed. Please verify PDF format."
                 kotlinx.coroutines.delay(2000)
-                progressSection.visibility = View.GONE
+                binding.llProgressSection.visibility = View.GONE
             }
         }
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        offlineInferenceHelper.close()
+    }
 }
+

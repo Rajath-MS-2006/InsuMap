@@ -70,6 +70,6 @@ class InsuMapMessagingService : FirebaseMessagingService() {
                 NotificationChannel(channelId, "InsuMap Alerts", NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
-        notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
+        notificationManager.notify(kotlin.math.abs(System.nanoTime().toInt()), notificationBuilder.build())
     }
 }

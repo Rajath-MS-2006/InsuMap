@@ -10,6 +10,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class SplashActivity : AppCompatActivity() {
+
+    private val firebaseHelper by lazy { com.insuranceclaimsmapping.firebase.FirebaseHelper() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_splash)
@@ -19,12 +22,12 @@ class SplashActivity : AppCompatActivity() {
         lifecycleScope.launch {
             delay(2000)
             if (isFinishing || isDestroyed) return@launch
-            
+
             val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
             if (currentUser != null && prefManager.isLoggedIn()) {
                 val role = prefManager.getRole()
                 if (role == null) {
-                    com.insuranceclaimsmapping.firebase.FirebaseHelper().getUserProfile(currentUser.uid, { user ->
+                    firebaseHelper.getUserProfile(currentUser.uid, onSuccess = { user ->
                         if (isFinishing || isDestroyed) return@getUserProfile
                         if (user != null) {
                             prefManager.setRole(user.role)
@@ -33,7 +36,7 @@ class SplashActivity : AppCompatActivity() {
                             startActivity(Intent(this@SplashActivity, SelectRoleActivity::class.java))
                         }
                         finish()
-                    }, {
+                    }, onFailure = { _ ->
                         if (isFinishing || isDestroyed) return@getUserProfile
                         startActivity(Intent(this@SplashActivity, LoginActivity::class.java))
                         finish()

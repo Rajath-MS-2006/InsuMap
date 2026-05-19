@@ -32,7 +32,12 @@ class AdjudicationActivity : AppCompatActivity() {
         offlineInferenceHelper = OfflineInferenceHelper(this)
         auth = FirebaseAuth.getInstance()
 
-        claims = intent.getParcelableArrayListExtra<Claim>("claims") ?: arrayListOf()
+        claims = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableArrayListExtra("claims", com.insuranceclaimsmapping.models.Claim::class.java) ?: arrayListOf()
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableArrayListExtra("claims") ?: arrayListOf()
+        }
         policyRules = intent.getStringExtra("policyRules") ?: "Use standard medical necessity rules."
 
         setupUI()
@@ -129,5 +134,10 @@ class AdjudicationActivity : AppCompatActivity() {
                 binding.scrollLog.fullScroll(View.FOCUS_DOWN) 
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        offlineInferenceHelper.close()
     }
 }
