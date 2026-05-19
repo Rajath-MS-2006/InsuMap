@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -57,10 +58,17 @@
         <activity 
             android:name=".activities.ClaimHistoryActivity"
             android:theme="@style/Theme.InsuranceClaims.NoActionBar" />
-        <activity android:name=".activities.ClaimLocationActivity" />
         <activity 
             android:name=".activities.ProfileActivity"
             android:theme="@style/Theme.InsuranceClaims.NoActionBar" />
+
+        <service
+            android:name=".services.InsuMapMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
     </application>
 

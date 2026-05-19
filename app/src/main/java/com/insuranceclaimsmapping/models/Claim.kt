@@ -23,5 +23,7 @@ data class Claim(
     val items: List<BillItem> = emptyList(),
     val coveredAmount: Double = 0.0, 
     val patientLiability: Double = 0.0, 
-    val aiReasoning: String = "" 
+    val aiReasoning: String = "",
+    val fraudWarning: Boolean = false,
+    val fraudReasoning: String = ""
 ) : Parcelable

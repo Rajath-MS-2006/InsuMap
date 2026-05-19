@@ -6,5 +6,8 @@ data class User(
     val email: String = "",
     val role: String = "", // PATIENT, HOSPITAL, INSURER
     val displayName: String = "",
+    val profilePictureUrl: String = "",
+    val phoneNumber: String = "",
+    val insuranceProviderId: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )

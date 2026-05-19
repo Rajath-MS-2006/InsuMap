@@ -93,6 +93,39 @@
                     android:textSize="11sp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
+        
+        <!-- Fraud Warning Banner -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardFraudWarning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:visibility="gone"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="6dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#FFCDD2"
+                android:orientation="vertical"
+                android:padding="20dp">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🚨 FRAUD / ANOMALY DETECTED"
+                    android:textColor="#C62828"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/tvFraudReasoning"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="AI Detected an anomaly in pricing."
+                    android:textColor="#B71C1C"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
         <Button
             android:id="@+id/btnPredictor"

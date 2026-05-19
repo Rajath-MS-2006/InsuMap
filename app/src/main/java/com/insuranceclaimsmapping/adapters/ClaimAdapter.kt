@@ -53,4 +53,7 @@ class ClaimAdapter(private var claims: List<Claim>) :
         claims = newClaims
         notifyDataSetChanged()
     }
+
+    fun getCurrentList(): List<Claim> = claims
 }
+

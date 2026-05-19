@@ -44,8 +44,28 @@ class PrefManager(context: Context) {
     }
 
     fun logout() {
+        val keepNotifications = getNotificationsEnabled()
         editor.clear()
         editor.commit()
+        setNotificationsEnabled(keepNotifications) // Preserve this preference across logins
+    }
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        editor.putBoolean(KEY_NOTIFICATIONS, enabled)
+        editor.commit()
+    }
+
+    fun getNotificationsEnabled(): Boolean {
+        return pref.getBoolean(KEY_NOTIFICATIONS, true) // Default to true
+    }
+
+    fun setDarkModeEnabled(enabled: Boolean) {
+        editor.putBoolean(KEY_DARK_MODE, enabled)
+        editor.commit()
+    }
+
+    fun getDarkModeEnabled(): Boolean {
+        return pref.getBoolean(KEY_DARK_MODE, false) // Default to light
     }
 
     companion object {
@@ -54,5 +74,7 @@ class PrefManager(context: Context) {
         private const val KEY_EMAIL = "email"
         private const val KEY_ROLE = "role"
         private const val KEY_CUSTOM_ID = "customId"
+        private const val KEY_NOTIFICATIONS = "notificationsEnabled"
+        private const val KEY_DARK_MODE = "darkModeEnabled"
     }
 }

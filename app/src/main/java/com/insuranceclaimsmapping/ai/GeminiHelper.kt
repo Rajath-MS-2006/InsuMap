@@ -152,11 +152,16 @@ class GeminiHelper(private val context: Context) {
                     ${itemsContext}
                     Policy Rules: $policyRules
                     
+                    Additionally, analyze the billed amounts for any extreme price anomalies or potential fraud (e.g., $1000 for a band-aid).
+                    If an item is unreasonably priced compared to standard market rates, set fraudWarning to true and provide the reason.
+                    
                     Respond with a valid JSON object only. Keys: 
                     "status" (APPROVED, REJECTED, PARTIAL), 
                     "coveredAmount" (number), 
                     "patientLiability" (number), 
-                    "aiReasoning" (string explaining the calculation and why - mentioning specific items if they caused a rejection based on the policy).
+                    "aiReasoning" (string explaining calculation),
+                    "fraudWarning" (boolean),
+                    "fraudReasoning" (string explanation if fraudWarning is true, else empty string).
                     Ensure the math is correct according to the policy rules. Do NOT make up rules or hallucinations.
                 """.trimIndent()
 
@@ -174,6 +179,8 @@ class GeminiHelper(private val context: Context) {
                     coveredAmount = json.optDouble("coveredAmount", 0.0),
                     patientLiability = json.optDouble("patientLiability", 0.0),
                     aiReasoning = json.optString("aiReasoning", "Processed by Gemini"),
+                    fraudWarning = json.optBoolean("fraudWarning", false),
+                    fraudReasoning = json.optString("fraudReasoning", ""),
                     timestamp = Timestamp.now()
                 )
             } catch (e: Exception) {
@@ -199,7 +206,11 @@ class GeminiHelper(private val context: Context) {
                     Policy: $policyRules
                     Items: $itemsJson
                     
-                    Return a JSON array of objects with keys: "description", "amount", "coveredAmount", "aiReasoning". 
+                    Additionally, analyze each billed amount for extreme price anomalies (fraud detection).
+                    If an item is unreasonably priced (e.g., $500 for aspirin), flag it by setting fraudWarning to true.
+                    
+                    Return a JSON array of objects with keys: 
+                    "description", "amount", "coveredAmount", "aiReasoning", "fraudWarning" (boolean).
                     Ensure it is a valid JSON array only.
                 """.trimIndent()
 
@@ -228,7 +239,8 @@ class GeminiHelper(private val context: Context) {
                         amount = obj.optDouble("amount", 0.0),
                         coveredAmount = obj.optDouble("coveredAmount", 0.0),
                         status = if (obj.optDouble("coveredAmount", 0.0) > 0) "ADJUDICATED" else "REJECTED",
-                        reasoning = obj.optString("aiReasoning", obj.optString("reasoning", "Processed via AI"))
+                        reasoning = obj.optString("aiReasoning", obj.optString("reasoning", "Processed via AI")),
+                        fraudWarning = obj.optBoolean("fraudWarning", false)
                     ))
                 }
                 adjudicatedList

@@ -157,6 +157,28 @@ class ClaimDetailActivity : AppCompatActivity() {
             cardSummary.visibility = View.GONE
         }
 
+        // Show Fraud Banner if needed (Visible only to Insurer or Hospital ideally, but let's show it to all for transparency unless specified)
+        val cardFraudWarning = findViewById<androidx.cardview.widget.CardView>(R.id.cardFraudWarning)
+        val tvFraudReasoning = findViewById<TextView>(R.id.tvFraudReasoning)
+        
+        // Aggregate item-level fraud if global is false
+        val hasItemFraud = claim.items.any { it.fraudWarning }
+        val finalFraudWarning = claim.fraudWarning || hasItemFraud
+        
+        if (finalFraudWarning) {
+            cardFraudWarning.visibility = View.VISIBLE
+            val reasoningText = if (claim.fraudReasoning.isNotEmpty()) {
+                claim.fraudReasoning
+            } else if (hasItemFraud) {
+                "One or more billed items have been flagged for extreme price anomalies."
+            } else {
+                "AI Flagged this claim for manual review due to anomalies."
+            }
+            tvFraudReasoning.text = reasoningText
+        } else {
+            cardFraudWarning.visibility = View.GONE
+        }
+
         // RecyclerView for items
         rvItems.layoutManager = LinearLayoutManager(this)
         rvItems.adapter = BillItemAdapter(claim.items)

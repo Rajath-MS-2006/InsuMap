@@ -9,7 +9,11 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 
 class FirebaseHelper {
-    private val db = FirebaseFirestore.getInstance()
+    private val db = FirebaseFirestore.getInstance().apply {
+        firestoreSettings = com.google.firebase.firestore.FirebaseFirestoreSettings.Builder()
+            .setPersistenceEnabled(true)
+            .build()
+    }
     private val auth = FirebaseAuth.getInstance()
     private val usersCollection = db.collection("users")
     private val claimsCollection = db.collection("claims")
@@ -52,6 +56,23 @@ class FirebaseHelper {
         val claimWithUser = claim.copy(userId = currentUserId)
         claimsCollection.add(claimWithUser)
             .addOnSuccessListener { onSuccess(it.id) }
+            .addOnFailureListener { onFailure(it) }
+    }
+    
+    fun updateUserProfile(user: User, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        usersCollection.document(user.uid).set(user)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onFailure(it) }
+    }
+
+    fun uploadProfilePicture(uri: android.net.Uri, uid: String, onSuccess: (String) -> Unit, onFailure: (Exception) -> Unit) {
+        val storageRef = com.google.firebase.storage.FirebaseStorage.getInstance().reference.child("profile_pictures/$uid.jpg")
+        storageRef.putFile(uri)
+            .addOnSuccessListener {
+                storageRef.downloadUrl.addOnSuccessListener { downloadUrl ->
+                    onSuccess(downloadUrl.toString())
+                }.addOnFailureListener { onFailure(it) }
+            }
             .addOnFailureListener { onFailure(it) }
     }
 
@@ -114,7 +135,8 @@ class FirebaseHelper {
                     amount = (itemMap["amount"] as? Number)?.toDouble() ?: 0.0,
                     coveredAmount = (itemMap["coveredAmount"] as? Number)?.toDouble() ?: 0.0,
                     status = itemMap["status"] as? String ?: "PENDING",
-                    reasoning = itemMap["reasoning"] as? String ?: ""
+                    reasoning = itemMap["reasoning"] as? String ?: "",
+                    fraudWarning = itemMap["fraudWarning"] as? Boolean ?: false
                 )
             } ?: emptyList()
 
@@ -133,6 +155,8 @@ class FirebaseHelper {
                 isBillLoaded = data["isBillLoaded"] as? Boolean ?: false,
                 isPolicyLoaded = data["isPolicyLoaded"] as? Boolean ?: false,
                 aiReasoning = data["aiReasoning"] as? String ?: "",
+                fraudWarning = data["fraudWarning"] as? Boolean ?: false,
+                fraudReasoning = data["fraudReasoning"] as? String ?: "",
                 items = billItems,
                 coveredAmount = try {
                     when (val v = data["coveredAmount"]) {

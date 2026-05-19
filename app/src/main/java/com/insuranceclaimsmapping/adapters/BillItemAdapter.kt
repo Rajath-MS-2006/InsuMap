@@ -16,6 +16,7 @@ class BillItemAdapter(private val items: List<BillItem>) : RecyclerView.Adapter<
         val tvStatus: TextView = view.findViewById(R.id.tvItemStatus)
         val tvRejected: TextView = view.findViewById(R.id.tvItemRejected)
         val tvReason: TextView = view.findViewById(R.id.tvItemReason)
+        val tvFraudBadge: TextView = view.findViewById(R.id.tvFraudBadgeItem)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -37,6 +38,14 @@ class BillItemAdapter(private val items: List<BillItem>) : RecyclerView.Adapter<
             holder.tvRejected.visibility = View.VISIBLE
         } else {
             holder.tvRejected.visibility = View.GONE
+        }
+        
+        if (item.fraudWarning) {
+            holder.tvFraudBadge.visibility = View.VISIBLE
+            holder.tvAmount.setTextColor(android.graphics.Color.parseColor("#D32F2F"))
+        } else {
+            holder.tvFraudBadge.visibility = View.GONE
+            holder.tvAmount.setTextColor(android.graphics.Color.parseColor("#000000"))
         }
     }
 

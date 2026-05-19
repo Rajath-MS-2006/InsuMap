@@ -13,6 +13,12 @@ import com.insuranceclaimsmapping.ai.GeminiHelper
 import com.insuranceclaimsmapping.firebase.FirebaseHelper
 import com.insuranceclaimsmapping.models.Claim
 import com.google.firebase.Timestamp
+import android.content.Intent
+import android.speech.RecognizerIntent
+import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
+import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.RESULT_FORMAT_JPEG
+import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.SCANNER_MODE_FULL
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,6 +34,31 @@ class AddClaimActivity : AppCompatActivity() {
             openCamera()
         } else {
             Toast.makeText(this, "Camera Permission is required to scan bills", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val scannerLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val scanResult = com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult.fromActivityResultIntent(result.data)
+            scanResult?.pages?.let { pages ->
+                if (pages.isNotEmpty()) {
+                    photoUri = pages[0].imageUri
+                    photoUri?.let { processImageWithAI(it) }
+                }
+            }
+        }
+    }
+
+    private val speechLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data
+            val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            if (!results.isNullOrEmpty()) {
+                val etDescription = findViewById<EditText>(R.id.etDescription)
+                val currentText = etDescription.text.toString()
+                etDescription.setText(if (currentText.isEmpty()) results[0] else "$currentText ${results[0]}")
+                etDescription.setSelection(etDescription.text.length)
+            }
         }
     }
 
@@ -62,11 +93,7 @@ class AddClaimActivity : AppCompatActivity() {
 
         btnScan.setOnClickListener {
             layoutManualInput.visibility = android.view.View.GONE
-            if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                openCamera()
-            } else {
-                permissionLauncher.launch(android.Manifest.permission.CAMERA)
-            }
+            openScanner()
         }
 
         btnUploadPdf.setOnClickListener {
@@ -76,6 +103,18 @@ class AddClaimActivity : AppCompatActivity() {
 
         btnManual.setOnClickListener {
             layoutManualInput.visibility = android.view.View.VISIBLE
+        }
+
+        findViewById<android.widget.ImageButton>(R.id.btnMic).setOnClickListener {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak the diagnosis or surgery details...")
+            }
+            try {
+                speechLauncher.launch(intent)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Speech recognition is not supported on this device.", Toast.LENGTH_SHORT).show()
+            }
         }
 
         btnSubmit.setOnClickListener {
@@ -293,6 +332,28 @@ class AddClaimActivity : AppCompatActivity() {
         root?.setBackgroundResource(bg)
         header?.setTextColor(color)
         window.statusBarColor = color
+    }
+
+    private fun openScanner() {
+        val options = GmsDocumentScannerOptions.Builder()
+            .setGalleryImportAllowed(true)
+            .setResultFormats(RESULT_FORMAT_JPEG)
+            .setScannerMode(SCANNER_MODE_FULL)
+            .build()
+        
+        GmsDocumentScanning.getClient(options).getStartScanIntent(this)
+            .addOnSuccessListener { intentSender ->
+                scannerLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(intentSender).build())
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to start scanner: ${e.message}", Toast.LENGTH_SHORT).show()
+                // Fallback to traditional camera if scanner is unavailable
+                if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    openCamera()
+                } else {
+                    permissionLauncher.launch(android.Manifest.permission.CAMERA)
+                }
+            }
     }
 
     private fun openCamera() {
