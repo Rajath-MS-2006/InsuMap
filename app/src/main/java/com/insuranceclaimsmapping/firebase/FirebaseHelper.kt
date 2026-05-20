@@ -22,7 +22,23 @@ class FirebaseHelper {
     }
 
     fun updateUserProfile(user: User, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
-        saveUserProfile(user, onSuccess, onFailure)
+        // Use update() — only patches the provided fields, never overwrites the whole document.
+        // This prevents profilePictureUrl from being wiped on name/phone edits.
+        val fields = mapOf(
+            "displayName" to user.displayName,
+            "phoneNumber" to user.phoneNumber,
+            "insuranceProviderId" to user.insuranceProviderId,
+            "fcmToken" to user.fcmToken
+        )
+        usersCollection.document(user.uid).update(fields)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onFailure(it) }
+    }
+
+    fun updateProfilePictureUrl(uid: String, url: String, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        usersCollection.document(uid).update("profilePictureUrl", url)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onFailure(it) }
     }
 
     fun getUserProfile(uid: String, onSuccess: (User?) -> Unit, onFailure: (Exception) -> Unit) {
@@ -125,12 +141,10 @@ class FirebaseHelper {
             else -> claimsCollection.whereEqualTo("userId", userId)
         }
 
-        query.orderBy("timestamp", Query.Direction.DESCENDING)
-            .get()
+        query.get()
             .addOnSuccessListener { result ->
-                val claims = result.documents.mapNotNull { doc ->
-                    safeMapToClaim(doc)
-                }
+                val claims = result.documents.mapNotNull { doc -> safeMapToClaim(doc) }
+                    .sortedByDescending { it.timestamp.toDate().time }
                 onSuccess(claims)
             }
             .addOnFailureListener { onFailure(it) }

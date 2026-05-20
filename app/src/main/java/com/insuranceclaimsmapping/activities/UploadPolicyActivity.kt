@@ -1,186 +1,32 @@
 package com.insuranceclaimsmapping.activities
 
-import android.net.Uri
 import android.os.Bundle
-import android.view.View
-import android.widget.TextView
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import com.insuranceclaimsmapping.R
-import com.insuranceclaimsmapping.ai.OfflineInferenceHelper
-import com.insuranceclaimsmapping.databinding.ActivityUploadPolicyBinding
-import com.insuranceclaimsmapping.firebase.FirebaseHelper
-import com.insuranceclaimsmapping.models.Policy
-import com.google.firebase.auth.FirebaseAuth
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import com.insuranceclaimsmapping.ui.theme.InsuMapTheme
 
-class UploadPolicyActivity : AppCompatActivity() {
-    private lateinit var firebaseHelper: FirebaseHelper
-    private lateinit var offlineInferenceHelper: OfflineInferenceHelper
-    private lateinit var auth: FirebaseAuth
-    private lateinit var binding: ActivityUploadPolicyBinding
+class UploadPolicyActivity : ComponentActivity() {
+    private val viewModel: UploadPolicyViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityUploadPolicyBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        firebaseHelper = FirebaseHelper()
-        offlineInferenceHelper = OfflineInferenceHelper(this)
-        auth = FirebaseAuth.getInstance()
-
-        setupUI()
-    }
-
-    private fun setupUI() {
-        setSupportActionBar(binding.toolbarPolicy)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        binding.toolbarPolicy.setNavigationOnClickListener { finish() }
-
-        auth.currentUser?.uid?.let { uid ->
-            firebaseHelper.getUserProfile(uid, { user ->
-                if (isFinishing || isDestroyed) return@getUserProfile
-                user?.let { applyRoleStyling(it.role) }
-            }, { e -> 
-                if (isFinishing || isDestroyed) return@getUserProfile
-                android.util.Log.w("UploadPolicy", "Failed to load role: ${e.message}") 
-            })
-        }
-
-        binding.llSelectPolicy.setOnClickListener { pdfLauncher.launch("application/pdf") }
-
-        val insurerId = auth.currentUser?.uid ?: ""
-        firebaseHelper.getPolicy(insurerId, { policy ->
-            if (isFinishing || isDestroyed) return@getPolicy
-            if (policy != null && policy.coverageDetails.isNotEmpty()) {
-                binding.btnViewPreviousPolicy.apply {
-                    visibility = View.VISIBLE
-                    text = "View Active Policy (v${policy.version})"
-                    setOnClickListener { showPolicyDialog("Version ${policy.version}", policy.coverageDetails) }
+        setContent {
+            InsuMapTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    UploadPolicyScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { finish() }
+                    )
                 }
-                binding.btnViewPolicyHistory.visibility = View.VISIBLE
-                binding.btnViewPolicyHistory.setOnClickListener { showPolicyHistory(insurerId) }
-            }
-        }, { e -> 
-            if (isFinishing || isDestroyed) return@getPolicy
-            android.util.Log.w("UploadPolicy", "Failed to load policy: ${e.message}") 
-        })
-    }
-
-    private fun showPolicyHistory(insurerId: String) {
-        firebaseHelper.getPolicyHistory(insurerId, { historyList: List<Policy> ->
-            if (isFinishing || isDestroyed) return@getPolicyHistory
-            if (historyList.isEmpty()) {
-                Toast.makeText(this, "No previous versions found.", Toast.LENGTH_SHORT).show()
-                return@getPolicyHistory
-            }
-            val fmt = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
-            val items = historyList.map { p ->
-                "Version ${p.version} — ${fmt.format(Date(p.uploadedAt))}"
-            }.toTypedArray()
-
-            AlertDialog.Builder(this)
-                .setTitle("Policy Version History")
-                .setItems(items as Array<CharSequence>) { _, idx ->
-                    showPolicyDialog("Version ${historyList[idx].version}", historyList[idx].coverageDetails)
-                }
-                .setNegativeButton("Close", null)
-                .show()
-        }, { e: Exception ->
-            if (isFinishing || isDestroyed) return@getPolicyHistory
-            Toast.makeText(this, "Failed to load history: ${e.message}", Toast.LENGTH_SHORT).show()
-        })
-    }
-
-    private fun applyRoleStyling(role: String) {
-        val (bg, colorRes) = when (role) {
-            "HOSPITAL" -> R.color.green_light to R.color.hospital_primary
-            "INSURER"  -> R.color.blue_light  to R.color.insurer_primary
-            "PATIENT"  -> R.color.yellow_light to R.color.patient_primary
-            else       -> R.color.gray         to R.color.default_primary
-        }
-        binding.rootLayoutPolicy.setBackgroundResource(bg)
-        binding.toolbarPolicy.setBackgroundColor(getColor(colorRes))
-    }
-
-    private fun showPolicyDialog(title: String, details: String) {
-        if (isFinishing || isDestroyed) return
-        val rulesView = TextView(this).apply {
-            text = details
-            setPadding(60, 40, 60, 40)
-            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
-            setTextColor(android.graphics.Color.DKGRAY)
-            movementMethod = android.text.method.ScrollingMovementMethod()
-        }
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setView(rulesView)
-            .setPositiveButton("Close", null)
-            .show()
-    }
-
-    private val pdfLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { processPolicy(it) }
-    }
-
-    private fun processPolicy(uri: Uri) {
-        binding.llProgressSection.visibility = View.VISIBLE
-
-        lifecycleScope.launch {
-            binding.tvPolicyStatus.text = "Initializing logical scan of PDF document..."
-            kotlinx.coroutines.delay(1000)
-            binding.tvPolicyStatus.text = "Analyzing coverage rules and benefit limits..."
-            kotlinx.coroutines.delay(1500)
-            binding.tvPolicyStatus.text = "Sanitizing extracted clinical data..."
-
-            val extractionResult = offlineInferenceHelper.extractPolicyDetails(uri)
-
-            if (extractionResult != null) {
-                binding.tvPolicyStatus.text = "Extraction complete. Registering policy..."
-                kotlinx.coroutines.delay(800)
-
-                val insurerId = auth.currentUser?.uid ?: run {
-                    binding.llProgressSection.visibility = View.GONE
-                    Toast.makeText(this@UploadPolicyActivity, "Not logged in.", Toast.LENGTH_SHORT).show()
-                    return@launch
-                }
-                val policy = Policy(
-                    insurerId = insurerId,
-                    name = "Active Policy",
-                    pdfUrl = "LOCAL",
-                    copayPercentage = 20.0,
-                    deductibleLimit = 500.0,
-                    coverageDetails = extractionResult
-                )
-
-                // Use savePolicyWithHistory to version the policy
-                firebaseHelper.savePolicyWithHistory(policy, {
-                    if (isFinishing || isDestroyed) return@savePolicyWithHistory
-                    binding.llProgressSection.visibility = View.GONE
-                    Toast.makeText(this@UploadPolicyActivity, "Policy Updated Successfully!", Toast.LENGTH_SHORT).show()
-                    finish()
-                }, { e: Exception ->
-                    if (isFinishing || isDestroyed) return@savePolicyWithHistory
-                    binding.llProgressSection.visibility = View.GONE
-                    Toast.makeText(this@UploadPolicyActivity, "Save Failed: ${e.message}", Toast.LENGTH_LONG).show()
-                })
-            } else {
-                binding.tvPolicyStatus.text = "Extraction failed. Please verify PDF format."
-                kotlinx.coroutines.delay(2000)
-                binding.llProgressSection.visibility = View.GONE
             }
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        offlineInferenceHelper.close()
     }
 }
-
