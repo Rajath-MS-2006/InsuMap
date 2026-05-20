@@ -30,6 +30,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
 import com.insuranceclaimsmapping.models.User
 import com.insuranceclaimsmapping.ui.components.AnimatedButton
 import com.insuranceclaimsmapping.ui.components.PremiumCard
@@ -166,12 +169,35 @@ fun ProfileContent(
             contentAlignment = Alignment.Center
         ) {
             if (state.user.profilePictureUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = state.user.profilePictureUrl,
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(state.user.profilePictureUrl)
+                        .crossfade(true)
+                        .crossfade(300)
+                        .build(),
                     contentDescription = "Profile Picture",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
-                )
+                ) {
+                    when (painter.state) {
+                        is AsyncImagePainter.State.Loading -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(32.dp),
+                                color = roleColor,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                        is AsyncImagePainter.State.Error -> {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(60.dp)
+                            )
+                        }
+                        else -> SubcomposeAsyncImageContent()
+                    }
+                }
             } else {
                 Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(60.dp))
             }

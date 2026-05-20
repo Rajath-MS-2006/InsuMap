@@ -102,8 +102,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             _toastMessage.value = "Uploading..."
             val user = currentState.user
             firebaseHelper.uploadProfilePicture(uri, user.uid, { downloadUrl ->
-                val updatedUser = user.copy(profilePictureUrl = downloadUrl)
-                firebaseHelper.updateUserProfile(updatedUser, {
+                // Atomically write only the profilePictureUrl field — never overwrites other fields
+                firebaseHelper.updateProfilePictureUrl(user.uid, downloadUrl, {
+                    val updatedUser = user.copy(profilePictureUrl = downloadUrl)
                     _uiState.value = currentState.copy(user = updatedUser)
                     _toastMessage.value = "Profile picture updated"
                 }, { e ->
