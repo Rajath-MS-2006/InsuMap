@@ -36,12 +36,6 @@ class LoginActivity : AppCompatActivity() {
         prefManager = PrefManager(this)
         firebaseHelper = FirebaseHelper()
 
-        val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
-            com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
-        ).requestIdToken(getString(R.string.default_web_client_id)).requestEmail().build()
-
-        val googleSignInClient = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(this, gso)
-
         val canUseBiometric = prefManager.isLoggedIn() &&
             BiometricManager.from(this).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
         binding.btnBiometricLogin.visibility = if (canUseBiometric) View.VISIBLE else View.GONE
@@ -118,7 +112,6 @@ class LoginActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnGoogleLogin.setOnClickListener { googleLoginLauncher.launch(googleSignInClient.signInIntent) }
         binding.tvSignup.setOnClickListener { startActivity(Intent(this, SignupActivity::class.java)) }
     }
 
@@ -220,42 +213,6 @@ class LoginActivity : AppCompatActivity() {
             e.printStackTrace()
             return null
         }
-    }
-
-    private val googleLoginLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (isFinishing || isDestroyed) return@registerForActivityResult
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            try {
-                val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-                account?.idToken?.let { idToken ->
-                    firebaseAuthWithGoogle(idToken)
-                } ?: run {
-                    Toast.makeText(this, "Google Sign-In Failed: Missing Token", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this, "Google Sign-In Failed", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun firebaseAuthWithGoogle(idToken: String) {
-        val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
-        auth.signInWithCredential(credential)
-            .addOnCompleteListener(this) { task ->
-                if (isFinishing || isDestroyed) return@addOnCompleteListener
-                if (task.isSuccessful) {
-                    val user = auth.currentUser ?: run {
-                        Toast.makeText(this, "Authentication error. Please try again.", Toast.LENGTH_SHORT).show()
-                        return@addOnCompleteListener
-                    }
-                    checkUserProfileAndRedirect(user.uid, user.email ?: "")
-                } else {
-                    Toast.makeText(this, "Firebase Auth with Google Failed", Toast.LENGTH_SHORT).show()
-                }
-            }
     }
 
     private fun checkUserProfileAndRedirect(uid: String, email: String) {

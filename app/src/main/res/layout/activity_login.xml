@@ -67,12 +67,6 @@
         android:text="@string/dont_have_account"
         android:textColor="@color/colorPrimary" />
 
-    <com.google.android.gms.common.SignInButton
-        android:id="@+id/btnGoogleLogin"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp" />
-
     <Button
         android:id="@+id/btnBiometricLogin"
         android:layout_width="match_parent"

@@ -72,23 +72,45 @@ class GeminiHelper(private val context: Context) {
                 }
 
                 // 2. Structuring Phase
+                val config = com.google.ai.client.generativeai.type.generationConfig {
+                    responseMimeType = "application/json"
+                }
+                
+                val modelWithConfig = com.google.ai.client.generativeai.GenerativeModel(
+                    modelName = "gemini-1.5-flash-latest",
+                    apiKey = com.insuranceclaimsmapping.BuildConfig.GEMINI_API_KEY,
+                    generationConfig = config
+                )
+
                 val inputContent = content {
                     text("""
                         Analyze this medical bill text thoroughly and carefully.
                         --- RAW TEXT START ---
                         $rawText
                         --- RAW TEXT END ---
-                        Extract the EXACT hospital name, patient name, and a complete itemized list of EVERY charge (description and amount) present on the document.
-                        Do NOT redact any data (e.g., do not output "REDACTED"); return the exact names and details as they appear.
-                        Do NOT use hospital taglines (like "Touching lives") as the patient name. Ensure you accurately identify the true patient name.
-                        Do NOT hallucinate or make up any names, hospitals, or items. Only use what is clearly visible in the text.
-                        If a field is not readable, use "Not Found" for strings or 0.0 for amounts.
-                        Return as valid JSON with keys: 'hospitalName', 'patientName', 'items' (array of objects with 'description' and 'amount').
-                        Ensure the output is a valid JSON. Capture EVERY single row of the bill, do not stop after one item.
+                        Extract the EXACT hospital name, patient name, and a complete itemized list of EVERY charge present on the document.
+                        CRITICAL INSTRUCTIONS:
+                        1. Do not summarize the list. Extract each and every item sequentially.
+                        2. You must capture ALL intermediate line items (Pharmacy, Diagnostics, Procedures, Consultations, etc.) between the first charge and the Total Invoice.
+                        3. Do not skip, group, or omit any charges.
+                        4. Do NOT use hospital taglines as the patient name.
+                        5. If a field is not readable, use "Not Found" for strings or 0.0 for amounts.
+                        
+                        Return ONLY a valid JSON object matching this schema exactly:
+                        {
+                          "hospitalName": "String",
+                          "patientName": "String",
+                          "items": [
+                            {
+                              "description": "String",
+                              "amount": 0.0
+                            }
+                          ]
+                        }
                     """.trimIndent())
                 }
                 
-                val response = withRetry { generativeModel.generateContent(inputContent) }
+                val response = withRetry { modelWithConfig.generateContent(inputContent) }
                 val text = response.text
                 Log.d("GeminiHelper", "Gemini Raw Response: $text")
                 

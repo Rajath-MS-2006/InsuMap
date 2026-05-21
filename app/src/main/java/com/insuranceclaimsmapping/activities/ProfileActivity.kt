@@ -60,7 +60,10 @@ class ProfileActivity : AppCompatActivity() {
                     }
 
                     if (user.profilePictureUrl.isNotEmpty()) {
-                        Glide.with(this).load(user.profilePictureUrl).into(binding.ivProfilePicture)
+                        Glide.with(this)
+                            .load(user.profilePictureUrl)
+                            .circleCrop()
+                            .into(binding.ivProfilePicture)
                     }
                 }
             }, {
@@ -139,8 +142,16 @@ class ProfileActivity : AppCompatActivity() {
         Toast.makeText(this, "Saving locally...", Toast.LENGTH_SHORT).show()
         
         try {
+            // Delete old profile pictures to prevent storage bloat
+            filesDir.listFiles()?.forEach { 
+                if (it.name.startsWith("profile_${user.uid}") && it.name.endsWith(".jpg")) {
+                    it.delete()
+                }
+            }
+
             val inputStream = contentResolver.openInputStream(uri)
-            val file = java.io.File(filesDir, "profile_${user.uid}.jpg")
+            val timestamp = System.currentTimeMillis()
+            val file = java.io.File(filesDir, "profile_${user.uid}_$timestamp.jpg")
             val outputStream = java.io.FileOutputStream(file)
             inputStream?.copyTo(outputStream)
             inputStream?.close()
@@ -152,7 +163,10 @@ class ProfileActivity : AppCompatActivity() {
             firebaseHelper.updateUserProfile(updatedUser, {
                 if (isFinishing || isDestroyed) return@updateUserProfile
                 currentUserData = updatedUser
-                Glide.with(this).load(localUri).into(binding.ivProfilePicture)
+                Glide.with(this)
+                    .load(localUri)
+                    .circleCrop()
+                    .into(binding.ivProfilePicture)
                 Toast.makeText(this, "Profile picture updated", Toast.LENGTH_SHORT).show()
             }, { e: Exception ->
                 if (isFinishing || isDestroyed) return@updateUserProfile
