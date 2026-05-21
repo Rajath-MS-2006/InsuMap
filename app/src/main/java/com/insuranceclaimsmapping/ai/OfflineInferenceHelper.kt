@@ -39,9 +39,8 @@ class OfflineInferenceHelper(private val context: Context) {
                 
                 val extractedText = StringBuilder()
                 
-                // Extract up to 23 pages, but skip the last 2 pages as they contain random text
-                val limit = 23
-                val pagesToRead = minOf(limit, maxOf(0, renderer.pageCount - 2))
+                // Extract all pages without arbitrary limits
+                val pagesToRead = renderer.pageCount
                 
                 for (i in 0 until pagesToRead) {
                     val page = renderer.openPage(i)
@@ -78,7 +77,12 @@ class OfflineInferenceHelper(private val context: Context) {
                     if (!copayFound && (lowerLine.contains("copay") || lowerLine.contains("co-pay") || lowerLine.contains("coinsurance") || lowerLine.contains("co pay"))) {
                         val pctMatch = Regex("(\\d+(?:\\.\\d+)?)\\s*%").find(line)
                         if (pctMatch != null) {
-                            copay = pctMatch.groupValues[1].toDoubleOrNull() ?: 0.0
+                            var extractedCopay = pctMatch.groupValues[1].toDoubleOrNull() ?: 0.0
+                            // If percentage is greater than 50, it is likely the coverage percentage.
+                            if (extractedCopay > 50.0) {
+                                extractedCopay = 100.0 - extractedCopay
+                            }
+                            copay = extractedCopay
                             copayFound = true
                         }
                     }
@@ -117,12 +121,15 @@ class OfflineInferenceHelper(private val context: Context) {
                     }
                 }
                 
-                // Fallbacks if literally nothing is found in the whole document but we must provide rules
                 if (!copayFound) {
                     // Try to find ANY percentage
                     val anyPct = Regex("(\\d+(?:\\.\\d+)?)\\s*%").find(rawText)
                     if (anyPct != null) {
-                        copay = anyPct.groupValues[1].toDoubleOrNull() ?: 0.0
+                        var extractedCopay = anyPct.groupValues[1].toDoubleOrNull() ?: 0.0
+                        if (extractedCopay > 50.0) {
+                            extractedCopay = 100.0 - extractedCopay
+                        }
+                        copay = extractedCopay
                     }
                 }
                 
@@ -258,7 +265,10 @@ class OfflineInferenceHelper(private val context: Context) {
                 }
                 
                 if (patientName == "Unknown Patient" && lines.size > 1) {
-                    patientName = lines.drop(1).firstOrNull { it.trim().isNotEmpty() }?.trim() ?: "Unknown Patient"
+                    val potentialName = lines.drop(1).firstOrNull { it.trim().isNotEmpty() }?.trim() ?: "Unknown Patient"
+                    if (!potentialName.equals("Touching lives", ignoreCase = true)) {
+                        patientName = potentialName
+                    }
                 }
 
                 ExtractionResult(

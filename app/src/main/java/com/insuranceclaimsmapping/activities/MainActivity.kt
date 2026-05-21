@@ -70,7 +70,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        if (role == "PATIENT" || role == "HOSPITAL") {
+        if (role == "HOSPITAL") {
             binding.fabQuickAction.visibility = View.VISIBLE
             binding.fabQuickAction.setOnClickListener { startActivity(Intent(this, AddClaimActivity::class.java)) }
         } else {

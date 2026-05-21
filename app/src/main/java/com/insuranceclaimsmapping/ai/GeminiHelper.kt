@@ -79,10 +79,12 @@ class GeminiHelper(private val context: Context) {
                         $rawText
                         --- RAW TEXT END ---
                         Extract the EXACT hospital name, patient name, and a complete itemized list of EVERY charge (description and amount) present on the document.
+                        Do NOT redact any data (e.g., do not output "REDACTED"); return the exact names and details as they appear.
+                        Do NOT use hospital taglines (like "Touching lives") as the patient name. Ensure you accurately identify the true patient name.
                         Do NOT hallucinate or make up any names, hospitals, or items. Only use what is clearly visible in the text.
                         If a field is not readable, use "Not Found" for strings or 0.0 for amounts.
                         Return as valid JSON with keys: 'hospitalName', 'patientName', 'items' (array of objects with 'description' and 'amount').
-                        Ensure the output is a valid JSON. Capture every single row of the bill.
+                        Ensure the output is a valid JSON. Capture EVERY single row of the bill, do not stop after one item.
                     """.trimIndent())
                 }
                 

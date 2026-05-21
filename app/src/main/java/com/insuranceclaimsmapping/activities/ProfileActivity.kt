@@ -136,23 +136,32 @@ class ProfileActivity : AppCompatActivity() {
 
     private fun uploadProfilePicture(uri: Uri) {
         val user = currentUserData ?: return
-        Toast.makeText(this, "Uploading...", Toast.LENGTH_SHORT).show()
-        firebaseHelper.uploadProfilePicture(uri, user.uid, { downloadUrl: String ->
-            if (isFinishing || isDestroyed) return@uploadProfilePicture
-            val updatedUser = user.copy(profilePictureUrl = downloadUrl)
+        Toast.makeText(this, "Saving locally...", Toast.LENGTH_SHORT).show()
+        
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val file = java.io.File(filesDir, "profile_${user.uid}.jpg")
+            val outputStream = java.io.FileOutputStream(file)
+            inputStream?.copyTo(outputStream)
+            inputStream?.close()
+            outputStream.close()
+            
+            val localUri = Uri.fromFile(file).toString()
+            val updatedUser = user.copy(profilePictureUrl = localUri)
+            
             firebaseHelper.updateUserProfile(updatedUser, {
                 if (isFinishing || isDestroyed) return@updateUserProfile
                 currentUserData = updatedUser
-                Glide.with(this).load(downloadUrl).into(binding.ivProfilePicture)
+                Glide.with(this).load(localUri).into(binding.ivProfilePicture)
                 Toast.makeText(this, "Profile picture updated", Toast.LENGTH_SHORT).show()
             }, { e: Exception ->
                 if (isFinishing || isDestroyed) return@updateUserProfile
                 Toast.makeText(this, "Failed to save picture URL: ${e.message}", Toast.LENGTH_SHORT).show()
             })
-        }, { e: Exception ->
-            if (isFinishing || isDestroyed) return@uploadProfilePicture
-            Toast.makeText(this, "Upload failed: ${e.message}", Toast.LENGTH_SHORT).show()
-        })
+        } catch (e: Exception) {
+            if (isFinishing || isDestroyed) return
+            Toast.makeText(this, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun applyRoleBranding(role: String) {

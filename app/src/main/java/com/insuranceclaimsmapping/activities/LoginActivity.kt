@@ -48,42 +48,98 @@ class LoginActivity : AppCompatActivity() {
         binding.btnBiometricLogin.setOnClickListener { showBiometricPrompt() }
 
         binding.btnLogin.setOnClickListener {
-            val email = binding.etEmail.text.toString().trim()
+            val input = binding.etEmail.text.toString().trim()
             val password = binding.etPassword.text.toString()
 
-            if (email.isEmpty() || password.isEmpty()) {
+            if (input.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, getString(R.string.error_empty_fields), Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                Toast.makeText(this, getString(R.string.error_invalid_email), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             binding.progressLogin.visibility = View.VISIBLE
             binding.btnLogin.isEnabled = false
 
-            auth.signInWithEmailAndPassword(email, password)
-                .addOnCompleteListener(this) { task ->
-                    if (isFinishing || isDestroyed) return@addOnCompleteListener
-                    if (task.isSuccessful) {
-                        val uid = auth.currentUser?.uid ?: run {
-                            binding.progressLogin.visibility = View.GONE
-                            binding.btnLogin.isEnabled = true
-                            Toast.makeText(this, "Authentication error. Please try again.", Toast.LENGTH_SHORT).show()
-                            return@addOnCompleteListener
+            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(input).matches()) {
+                // Not an email, search for username
+                com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users")
+                    .whereEqualTo("displayName", input)
+                    .get()
+                    .addOnSuccessListener { snapshot ->
+                        if (isFinishing || isDestroyed) return@addOnSuccessListener
+                        if (!snapshot.isEmpty) {
+                            val userDoc = snapshot.documents[0]
+                            val actualEmail = userDoc.getString("email") ?: ""
+                            if (actualEmail.isNotEmpty()) {
+                                performFirebaseLogin(actualEmail, password)
+                            } else {
+                                binding.progressLogin.visibility = View.GONE
+                                binding.btnLogin.isEnabled = true
+                                Toast.makeText(this, "No email found for this username", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            // Check customId as well
+                            com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users")
+                                .whereEqualTo("customId", input)
+                                .get()
+                                .addOnSuccessListener { customIdSnapshot ->
+                                    if (isFinishing || isDestroyed) return@addOnSuccessListener
+                                    if (!customIdSnapshot.isEmpty) {
+                                        val customUserDoc = customIdSnapshot.documents[0]
+                                        val customActualEmail = customUserDoc.getString("email") ?: ""
+                                        if (customActualEmail.isNotEmpty()) {
+                                            performFirebaseLogin(customActualEmail, password)
+                                        } else {
+                                            binding.progressLogin.visibility = View.GONE
+                                            binding.btnLogin.isEnabled = true
+                                            Toast.makeText(this, "No email found for this user ID", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        binding.progressLogin.visibility = View.GONE
+                                        binding.btnLogin.isEnabled = true
+                                        Toast.makeText(this, "Username or User ID not found", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                .addOnFailureListener {
+                                    if (isFinishing || isDestroyed) return@addOnFailureListener
+                                    binding.progressLogin.visibility = View.GONE
+                                    binding.btnLogin.isEnabled = true
+                                    Toast.makeText(this, "Database error", Toast.LENGTH_SHORT).show()
+                                }
                         }
-                        checkUserProfileAndRedirect(uid, email)
-                    } else {
+                    }
+                    .addOnFailureListener {
+                        if (isFinishing || isDestroyed) return@addOnFailureListener
                         binding.progressLogin.visibility = View.GONE
                         binding.btnLogin.isEnabled = true
-                        Toast.makeText(this, "Login Failed: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, "Database error", Toast.LENGTH_SHORT).show()
                     }
-                }
+            } else {
+                performFirebaseLogin(input, password)
+            }
         }
 
         binding.btnGoogleLogin.setOnClickListener { googleLoginLauncher.launch(googleSignInClient.signInIntent) }
         binding.tvSignup.setOnClickListener { startActivity(Intent(this, SignupActivity::class.java)) }
+    }
+
+    private fun performFirebaseLogin(email: String, password: String) {
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnCompleteListener(this) { task ->
+                if (isFinishing || isDestroyed) return@addOnCompleteListener
+                if (task.isSuccessful) {
+                    val uid = auth.currentUser?.uid ?: run {
+                        binding.progressLogin.visibility = View.GONE
+                        binding.btnLogin.isEnabled = true
+                        Toast.makeText(this, "Authentication error. Please try again.", Toast.LENGTH_SHORT).show()
+                        return@addOnCompleteListener
+                    }
+                    checkUserProfileAndRedirect(uid, email)
+                } else {
+                    binding.progressLogin.visibility = View.GONE
+                    binding.btnLogin.isEnabled = true
+                    Toast.makeText(this, "Login Failed: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
+                }
+            }
     }
 
     private fun showBiometricPrompt() {

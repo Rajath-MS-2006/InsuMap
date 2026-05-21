@@ -58,6 +58,7 @@ class ClaimDetailActivity : AppCompatActivity() {
         binding.btnPredictor.setOnClickListener { startFinancialPredictor() }
         binding.btnLinkPatient.setOnClickListener { linkClaimToPatient() }
         binding.btnDeleteClaim.setOnClickListener { deleteClaim() }
+        binding.btnEditPatientName.setOnClickListener { showEditPatientNameDialog() }
         binding.btnAppeal.setOnClickListener {
             val claim = currentClaim ?: return@setOnClickListener
             startActivity(Intent(this, AppealClaimActivity::class.java).apply {
@@ -125,6 +126,11 @@ class ClaimDetailActivity : AppCompatActivity() {
     }
 
     private fun updateUI(claim: Claim) {
+        val role = prefManager.getRole() ?: "PATIENT"
+
+        binding.tvDetailTitle.text = "Patient: ${claim.name.ifEmpty { "Unknown" }}"
+        binding.btnEditPatientName.visibility = if (role == "HOSPITAL" || role == "INSURER") View.VISIBLE else View.GONE
+
         binding.tvStatCovered.text = "₹%.2f".format(claim.coveredAmount)
         binding.tvStatLiability.text = "₹%.2f".format(claim.patientLiability)
         binding.tvStatTotal.text = "₹%.2f".format(claim.amount.toDoubleOrNull() ?: 0.0)
@@ -133,8 +139,6 @@ class ClaimDetailActivity : AppCompatActivity() {
         binding.tvStatusBill.alpha = if (claim.isBillLoaded) 1.0f else 0.5f
         binding.tvStatusPolicy.text = if (claim.isPolicyLoaded) "✅ Insurance Policy Loaded" else "○ Policy Pending"
         binding.tvStatusPolicy.alpha = if (claim.isPolicyLoaded) 1.0f else 0.5f
-
-        val role = prefManager.getRole() ?: "PATIENT"
 
         if (claim.status == "ADJUDICATED") {
             binding.cardSummary.visibility = View.VISIBLE
@@ -310,22 +314,45 @@ class ClaimDetailActivity : AppCompatActivity() {
     }
 
     private fun deleteClaim() {
-        val cid = claimId ?: return
-        android.app.AlertDialog.Builder(this)
+        val claim = currentClaim ?: return
+        androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Delete Claim")
             .setMessage("Are you sure you want to permanently delete this claim?")
             .setPositiveButton("Delete") { _, _ ->
-                FirebaseFirestore.getInstance().collection("claims").document(cid)
+                FirebaseFirestore.getInstance().collection("claims").document(claim.id)
                     .delete()
                     .addOnSuccessListener {
-                        if (isFinishing || isDestroyed) return@addOnSuccessListener
                         Toast.makeText(this, "Claim deleted", Toast.LENGTH_SHORT).show()
                         finish()
                     }
                     .addOnFailureListener { e ->
-                        if (isFinishing || isDestroyed) return@addOnFailureListener
-                        Toast.makeText(this, "Error deleting claim: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showEditPatientNameDialog() {
+        val claim = currentClaim ?: return
+        val input = android.widget.EditText(this)
+        input.setText(claim.name)
+        input.setPadding(50, 50, 50, 50)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Edit Patient Name")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val newName = input.text.toString().trim()
+                if (newName.isNotEmpty() && newName != claim.name) {
+                    FirebaseFirestore.getInstance().collection("claims").document(claim.id)
+                        .update("name", newName)
+                        .addOnSuccessListener {
+                            Toast.makeText(this, "Patient name updated", Toast.LENGTH_SHORT).show()
+                        }
+                        .addOnFailureListener { e ->
+                            Toast.makeText(this, "Failed to update: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                }
             }
             .setNegativeButton("Cancel", null)
             .show()
