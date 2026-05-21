@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "466720413964",
+    "project_id": "insuranceclaimsmapper",
+    "storage_bucket": "insuranceclaimsmapper.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:466720413964:android:aa8aee6168ddcf998f9129",
+        "android_client_info": {
+          "package_name": "com.insuranceclaimsmapping"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDa5l-ctyQMKtJ6NHl99dYMV70o_DjjsNs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
