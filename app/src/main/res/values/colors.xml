@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#00796B</color>
+    <color name="colorPrimaryDark">#004D40</color>
+    <color name="colorAccent">#4DB6AC</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="gray">#F5F5F5</color>
+    <color name="dark_gray">#212121</color>
+    <color name="green_light">#E8F5E9</color>
+    <color name="blue_light">#E3F2FD</color>
+    <color name="yellow_light">#FFFDE7</color>
+    <color name="error_red">#D32F2F</color>
+
+    <!-- Role-specific colors -->
+    <color name="hospital_primary">#2E7D32</color>
+    <color name="hospital_dark">#1B5E20</color>
+    <color name="insurer_primary">#1565C0</color>
+    <color name="insurer_dark">#0D47A1</color>
+    <color name="patient_primary">#F57F17</color>
+    <color name="patient_dark">#E65100</color>
+    <color name="default_primary">#00796B</color>
+    <color name="default_dark">#004D40</color>
+
+    <!-- Status colors -->
+    <color name="status_pending">#FF8F00</color>
+    <color name="status_approved">#2E7D32</color>
+    <color name="status_rejected">#C62828</color>
+    <color name="status_appeal">#F57F17</color>
+    <color name="fraud_bg">#FFCDD2</color>
+    <color name="fraud_text">#B71C1C</color>
+    <color name="fraud_title">#C62828</color>
+
+    <!-- Chart colors -->
+    <color name="chart_blue">#1565C0</color>
+    <color name="chart_green">#2E7D32</color>
+    <color name="chart_orange">#E65100</color>
+    <color name="chart_purple">#6A1B9A</color>
+    <color name="chart_teal">#00838F</color>
+</resources>
