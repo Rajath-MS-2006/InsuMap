@@ -69,8 +69,9 @@ InsuMap/
 ├── firestore.rules
 ├── gradle.properties
 └── gradlew.bat
+```
 🚀 Getting Started
-
+```text
 Follow the steps below to clone and run InsuMap on your system.
 
 1. Prerequisites
@@ -197,11 +198,12 @@ Run the application on an Android device or emulator.
 Add or load the required sample policy and bill information.
 Test the mapping between the Patient, Hospital, and Insurance Company.
 Verify that the relevant Firestore data is being stored and retrieved correctly.
+```
 📌 Project Status
 
 Development Project
 
-InsuMap is an academic/project implementation demonstrating an Android-based approach to digitally mapping insurance claim information between patients, hospitals, and insurance companies.
+InsuMap is a project implementation demonstrating an Android-based approach to digitally mapping insurance claim information between patients, hospitals, and insurance companies.
 
 👨‍💻 Author
 
